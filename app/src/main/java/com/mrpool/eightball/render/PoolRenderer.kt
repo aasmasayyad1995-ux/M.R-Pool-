@@ -252,12 +252,7 @@ class PoolRenderer(
         // between it and whatever is drawn beneath, which shows as a ragged border.
         identity(model)
         translate(model, 0f, 0f, 0f)
-        scale(
-            model,
-            TableGeometry.HALF_LENGTH + CUSHION_DEPTH * 2f,
-            1f,
-            TableGeometry.HALF_WIDTH + CUSHION_DEPTH * 2f
-        )
+        scale(model, TableLayers.clothHalfLength(), 1f, TableLayers.clothHalfWidth())
         draw(shader, quad, model, felt, 1f, feltTexture, unlit = false, shininess = 6f, specular = 0.03f)
 
         // Apron under the bed so the table reads as a solid object from a low camera.
@@ -265,8 +260,8 @@ class PoolRenderer(
         // surface, so a top face level with the cloth would be coplanar with it right
         // across the table, and the two would z-fight into a shimmering patchwork.
         identity(model)
-        translate(model, 0f, -APRON_HEIGHT - APRON_GAP, 0f)
-        scale(model, frameHalfLength(), APRON_HEIGHT, frameHalfWidth())
+        translate(model, 0f, TableLayers.APRON_TOP - TableLayers.APRON_HEIGHT, 0f)
+        scale(model, frameHalfLength(), TableLayers.APRON_HEIGHT, frameHalfWidth())
         draw(shader, unitBox, model, rail, 1f, woodTexture, unlit = false, shininess = 18f, specular = 0.10f)
 
         drawCushions(shader)
@@ -341,7 +336,7 @@ class PoolRenderer(
     private fun drawRailFrame(shader: ShaderProgram) {
         val cushionOuterL = TableGeometry.HALF_LENGTH + CUSHION_DEPTH * 2f
         val cushionOuterW = TableGeometry.HALF_WIDTH + CUSHION_DEPTH * 2f
-        val height = 0.042f
+        val height = TableLayers.RAIL_HEIGHT
         val color = style.railColor
 
         // The long rails run the whole length and close the corners.
@@ -364,22 +359,20 @@ class PoolRenderer(
         )
     }
 
-    private fun frameHalfLength(): Float =
-        TableGeometry.HALF_LENGTH + CUSHION_DEPTH * 2f + RAIL_WIDTH * 2f
+    private fun frameHalfLength(): Float = TableLayers.frameHalfLength()
 
-    private fun frameHalfWidth(): Float =
-        TableGeometry.HALF_WIDTH + CUSHION_DEPTH * 2f + RAIL_WIDTH * 2f
+    private fun frameHalfWidth(): Float = TableLayers.frameHalfWidth()
 
     private fun drawPockets(shader: ShaderProgram, trim: Int) {
         for (pocket in TableGeometry.pockets) {
             identity(model)
-            translate(model, pocket.center.x, 0.0035f, pocket.center.y)
+            translate(model, pocket.center.x, TableLayers.POCKET_TRIM, pocket.center.y)
             val r = pocket.radius * 1.5f
             scale(model, r, 1f, r)
             draw(shader, disc, model, trim, 1f, 0, unlit = false, shininess = 30f, specular = 0.18f)
 
             identity(model)
-            translate(model, pocket.center.x, 0.0055f, pocket.center.y)
+            translate(model, pocket.center.x, TableLayers.POCKET_HOLE, pocket.center.y)
             val inner = pocket.radius * 1.12f
             scale(model, inner, 1f, inner)
             draw(shader, disc, model, 0xFF05070A.toInt(), 1f, 0, unlit = true, shininess = 1f, specular = 0f)
@@ -390,7 +383,7 @@ class PoolRenderer(
     private fun drawSights(shader: ShaderProgram, trim: Int) {
         val halfL = TableGeometry.HALF_LENGTH
         val halfW = TableGeometry.HALF_WIDTH
-        val railY = CUSHION_HEIGHT * 2f + 0.042f * 2f + 0.0005f
+        val railY = TableLayers.RAIL_SIGHT
         val radius = 0.0075f
         val zOffset = halfW + CUSHION_DEPTH * 2f + RAIL_WIDTH
         val xOffset = halfL + CUSHION_DEPTH * 2f + RAIL_WIDTH
@@ -431,12 +424,12 @@ class PoolRenderer(
     private fun drawSpots(shader: ShaderProgram) {
         GLES30.glEnable(GLES30.GL_BLEND)
         identity(model)
-        translate(model, TableGeometry.FOOT_SPOT_X, MARKING_HEIGHT, 0f)
+        translate(model, TableGeometry.FOOT_SPOT_X, TableLayers.MARKING, 0f)
         scale(model, 0.009f, 1f, 0.009f)
         draw(shader, disc, model, 0xFFE8E2D0.toInt(), 0.75f, 0, true, 1f, 0f)
 
         identity(model)
-        translate(model, TableGeometry.HEAD_STRING_X, MARKING_HEIGHT, 0f)
+        translate(model, TableGeometry.HEAD_STRING_X, TableLayers.MARKING, 0f)
         scale(model, 0.0016f, 1f, TableGeometry.HALF_WIDTH)
         draw(shader, quad, model, 0xFFE8E2D0.toInt(), 0.28f, 0, true, 1f, 0f)
         GLES30.glDisable(GLES30.GL_BLEND)
@@ -451,7 +444,12 @@ class PoolRenderer(
         for (ball in controller.session.physics.balls) {
             if (ball.pocketed) continue
             identity(model)
-            translate(model, ball.position.x, 0.0012f, ball.position.y + radius * 0.35f)
+            translate(
+                model,
+                ball.position.x,
+                TableLayers.BALL_SHADOW,
+                ball.position.y + radius * 0.35f
+            )
             scale(model, radius * 1.45f, 1f, radius * 1.45f)
             draw(shader, disc, model, 0xFF000000.toInt(), 0.55f, shadowTexture, true, 1f, 0f)
         }
@@ -534,7 +532,7 @@ class PoolRenderer(
             val segment = min(dash, length - travelled)
             val mid = from + direction * (travelled + segment / 2f)
             identity(model)
-            translate(model, mid.x, 0.0022f, mid.y)
+            translate(model, mid.x, TableLayers.GUIDE_DASH, mid.y)
             rotateY(model, atan2(direction.y, direction.x))
             scale(model, segment / 2f, 1f, 0.0032f)
             draw(shader, quad, model, color, alpha, 0, true, 1f, 0f)
@@ -552,7 +550,7 @@ class PoolRenderer(
     ) {
         val mid = from + direction * (length / 2f)
         identity(model)
-        translate(model, mid.x, 0.0024f, mid.y)
+        translate(model, mid.x, TableLayers.GUIDE_LINE, mid.y)
         rotateY(model, atan2(direction.y, direction.x))
         scale(model, length / 2f, 1f, 0.0028f)
         draw(shader, quad, model, color, alpha, 0, true, 1f, 0f)
@@ -702,20 +700,11 @@ class PoolRenderer(
         private const val DEFAULT_DISTANCE = 2.36f
         private const val FIELD_OF_VIEW = 32f
 
-        /** Depth of the table body, and how far its top sits below the cloth. */
-        private const val APRON_HEIGHT = 0.045f
-        private const val APRON_GAP = 0.006f
-
-        /**
-         * Spots and lines printed on the cloth. Every flat thing drawn on the bed gets its
-         * own height — shadows at 1.2mm, these at 1.8mm, the aiming guide above them — so
-         * that no two of them ever share a plane where they cross.
-         */
-        private const val MARKING_HEIGHT = 0.0018f
-
-        private const val CUSHION_DEPTH = 0.048f
-        private const val CUSHION_HEIGHT = 0.019f
-        private const val RAIL_WIDTH = 0.062f
+        // Heights and footprints live in TableLayers, where a unit test can check that no
+        // two surfaces which overlap each other ever share one.
+        private const val CUSHION_DEPTH = TableLayers.CUSHION_DEPTH
+        private const val CUSHION_HEIGHT = TableLayers.CUSHION_HEIGHT
+        private const val RAIL_WIDTH = TableLayers.RAIL_WIDTH
         private const val CUE_ELEVATION = 0.11f
         private const val SHAFT_LENGTH = 0.78f
         private const val BUTT_LENGTH = 0.62f
