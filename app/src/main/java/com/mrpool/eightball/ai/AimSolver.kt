@@ -148,9 +148,7 @@ object AimSolver {
         val effective = cueDistance + objectDistance / transfer
         // v^2 = 2 * a * s, with a margin so the ball arrives with something left.
         val speed = sqrt(2f * 0.9f * effective) * 1.28f + 0.35f
-        val normalised = (speed - GameSession.MIN_SHOT_SPEED) /
-            (GameSession.MAX_SHOT_SPEED - GameSession.MIN_SHOT_SPEED)
-        return normalised.coerceIn(0.10f, 0.92f)
+        return GameSession.powerForSpeed(speed).coerceIn(0.10f, 0.95f)
     }
 
     /**

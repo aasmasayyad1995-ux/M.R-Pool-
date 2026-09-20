@@ -43,6 +43,16 @@ class EightBallRulesTest {
         }
     }
 
+    /**
+     * Takes a shot at [speed] metres per second.
+     *
+     * Speed rather than a position on the power bar: the bar's shape is a feel decision
+     * that gets tuned, and a test that says "0.36" silently stops meaning "hard enough to
+     * reach the pocket" the moment it changes.
+     */
+    private fun runShotAt(session: GameSession, direction: Vec2, speed: Float) =
+        runShot(session, direction, GameSession.powerForSpeed(speed))
+
     private fun runShot(session: GameSession, direction: Vec2, power: Float) {
         if (session.phase == GamePhase.BALL_IN_HAND) {
             val here = session.physics.cueBall!!.position
@@ -97,7 +107,7 @@ class EightBallRulesTest {
         val one = session.physics.ball(1)!!
         val shooter = session.currentSeat
         val direction = lineUp(session, one, "TOP_RIGHT")
-        runShot(session, direction, 0.36f)
+        runShotAt(session, direction, POT_SPEED)
 
         assertEquals(BallGroup.SOLIDS, session.groupOf(shooter))
         assertEquals(BallGroup.STRIPES, session.groupOf(session.opponentOf(shooter)))
@@ -119,7 +129,7 @@ class EightBallRulesTest {
         forceGroups(session, BallGroup.SOLIDS)
         val three = session.physics.ball(3)!!
         val direction = lineUp(session, three, "TOP_RIGHT")
-        runShot(session, direction, 0.36f)
+        runShotAt(session, direction, POT_SPEED)
 
         val result = session.lastResult
         assertNotNull(result)
@@ -137,7 +147,7 @@ class EightBallRulesTest {
         val shooter = session.currentSeat
         val eight = session.physics.ball(8)!!
         val direction = lineUp(session, eight, "TOP_RIGHT")
-        runShot(session, direction, 0.36f)
+        runShotAt(session, direction, POT_SPEED)
 
         assertEquals(GamePhase.GAME_OVER, session.phase)
         assertEquals(shooter, session.winner)
@@ -152,7 +162,7 @@ class EightBallRulesTest {
         val shooter = session.currentSeat
         val eight = session.physics.ball(8)!!
         val direction = lineUp(session, eight, "TOP_RIGHT")
-        runShot(session, direction, 0.36f)
+        runShotAt(session, direction, POT_SPEED)
 
         assertEquals(GamePhase.GAME_OVER, session.phase)
         assertEquals(session.opponentOf(shooter), session.winner)
@@ -172,7 +182,7 @@ class EightBallRulesTest {
         cue.pocketed = false
         cue.stop()
         val corner = pocket("BOTTOM_RIGHT").center
-        runShot(session, (corner - cue.position).normalized(), 0.5f)
+        runShotAt(session, (corner - cue.position).normalized(), POT_SPEED)
 
         val result = session.lastResult!!
         assertTrue("potting the cue ball must be a foul", result.foul)
@@ -206,6 +216,11 @@ class EightBallRulesTest {
 
         session.physics.ball(3)!!.pocketed = true
         assertEquals(listOf(8), session.legalTargets(session.currentSeat))
+    }
+
+    private companion object {
+        /** Comfortably enough pace to send a ball the length of a pot and drop it. */
+        const val POT_SPEED = 3.4f
     }
 
     /** Assigns groups directly, so a test can start from a chosen position. */
