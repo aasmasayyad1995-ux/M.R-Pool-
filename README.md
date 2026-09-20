@@ -149,9 +149,11 @@ textures, so any table colour in the shop can be rendered. Spheres, boxes, discs
 tapered cue are generated as meshes, lit with a Blinn-Phong shader.
 
 Controls: put a finger on the cue ball and **draw it back** to load the shot, then let go to
-play it — only the distance straight back counts, and letting go without pulling costs you
-nothing. Drag anywhere else on the table to swing the aim, two fingers to orbit, pinch to
-zoom. The meter down the side fills as you pull, and the spin pad moves the tip off centre.
+play it. The finger is the butt of the cue, so the same drag sets both halves of a shot:
+how far back you pull is the power, and swinging round while pulled back swings the line of
+the shot with it. Letting go without pulling costs you nothing. Drag anywhere else on the
+table to swing the aim, two fingers to orbit, pinch to zoom. The meter down the side fills
+as you pull, and the spin pad moves the tip off centre.
 
 ## Installing it on a phone
 

@@ -68,11 +68,15 @@ private val LESSONS = listOf(
         )
     ),
     Lesson(
-        "Power: draw the cue back and let go",
+        "The shot: draw the cue back and let go",
         "Put a finger on the cue ball and drag backwards, the way you would draw a real cue " +
-            "back. The further you pull, the harder the shot. Let go and it fires.",
+            "back. Your finger is the butt of the cue: the shot goes the opposite way, out " +
+            "through the ball. The further back you pull, the harder it is hit. Let go and " +
+            "it fires.",
         listOf(
-            "Only the distance straight back counts, so sliding sideways will not add power.",
+            "Swing your finger round while it is pulled back and the aim swings with it, " +
+                "so you can set the line and the power in one movement.",
+            "Pull straight back and the aim does not budge — only the distance changes.",
             "Let go without pulling and nothing happens — a mis-grab costs you nothing.",
             "The meter down the side fills as you pull, so you can see what you are about " +
                 "to hit it with.",

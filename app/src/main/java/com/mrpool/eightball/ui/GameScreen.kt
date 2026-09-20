@@ -227,7 +227,7 @@ fun GameScreen(
                     .padding(horizontal = 16.dp, vertical = 7.dp)
             ) {
                 Text(
-                    "Pull the cue ball back and let go to shoot",
+                    "Drag back from the cue ball to aim and load, let go to shoot",
                     color = Chalk.copy(alpha = 0.65f),
                     style = MaterialTheme.typography.labelSmall
                 )
