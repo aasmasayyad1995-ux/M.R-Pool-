@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mr. Pool 3D</string>
+    <string name="lobby_title">MR. POOL</string>
+    <string name="lobby_subtitle">8 Ball Pool · 3D Edition</string>
+    <string name="menu_play_robot">Play with Robot</string>
+    <string name="menu_play_friend">Play with Friend</string>
+    <string name="menu_cue_stick">Choose Cue Stick</string>
+    <string name="menu_table">Table Selection</string>
+    <string name="menu_how_to">How to Play Pool</string>
+    <string name="difficulty_beginner">Beginner</string>
+    <string name="difficulty_medium">Medium</string>
+    <string name="difficulty_hard">Hard</string>
+    <string name="coins">Coins</string>
+    <string name="buy">Buy</string>
+    <string name="equip">Equip</string>
+    <string name="equipped">Equipped</string>
+    <string name="locked">Locked</string>
+</resources>
