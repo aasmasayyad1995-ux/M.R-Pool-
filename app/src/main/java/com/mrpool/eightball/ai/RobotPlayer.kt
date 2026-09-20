@@ -246,8 +246,8 @@ class RobotPlayer(
                 val ghost = contactPoint - straight * TableGeometry.BALL_DIAMETER
                 val dir = (ghost - cue.position).normalized()
                 if (dir.isNearlyZero()) continue
-                for (power in SAFETY_POWERS) {
-                    val shot = PlannedShot(dir, power, 0f, -0.25f, "Safety")
+                for (speed in SAFETY_SPEEDS) {
+                    val shot = PlannedShot(dir, powerFor(speed), 0f, -0.25f, "Safety")
                     val score = rehearseSafety(session, shot, group, opponentGroup)
                     if (score > bestScore) {
                         bestScore = score
@@ -309,8 +309,8 @@ class RobotPlayer(
         var best: PlannedShot? = null
         var bestScore = -Float.MAX_VALUE
         for (heading in headings.take(MAX_ESCAPE_HEADINGS)) {
-            for (power in ESCAPE_POWERS) {
-                val shot = PlannedShot(Vec2.fromAngle(heading), power, 0f, 0f, "Escape")
+            for (speed in ESCAPE_SPEEDS) {
+                val shot = PlannedShot(Vec2.fromAngle(heading), powerFor(speed), 0f, 0f, "Escape")
                 val score = rehearseSafety(session, shot, group, opponentGroup)
                 if (score > bestScore) {
                     bestScore = score
@@ -392,8 +392,11 @@ class RobotPlayer(
             val dir = (ball.position - cue.position).normalized()
             val seen = AimSolver.raycastFirstBall(session.physics, cue.position, dir, 0)
             if (seen != null && seen.ballNumber == ball.number) {
-                val power = 0.4f + random.nextFloat() * 0.3f
-                return applyHumanError(PlannedShot(dir, power, 0f, 0f, "Hit the ${ball.number}"))
+                val speed = POKE_SPEED_RANGE.start +
+                    random.nextFloat() * (POKE_SPEED_RANGE.endInclusive - POKE_SPEED_RANGE.start)
+                return applyHumanError(
+                    PlannedShot(dir, powerFor(speed), 0f, 0f, "Hit the ${ball.number}")
+                )
             }
         }
         // Nothing in sight: a bank off a cushion is the only legal option left.
@@ -401,7 +404,7 @@ class RobotPlayer(
 
         val ball = reachable.firstOrNull() ?: return PlannedShot(Vec2(1f, 0f), 0.5f)
         val dir = (ball.position - cue.position).normalized()
-        return applyHumanError(PlannedShot(dir, 0.55f, 0f, 0f, "Hit the ${ball.number}"))
+        return applyHumanError(PlannedShot(dir, powerFor(4.6f), 0f, 0f, "Hit the ${ball.number}"))
     }
 
     // ---------------------------------------------------------------- ball in hand
@@ -484,9 +487,10 @@ class RobotPlayer(
         abs(p.x) > TableGeometry.HALF_LENGTH - TableGeometry.BALL_RADIUS * 2.4f ||
             abs(p.y) > TableGeometry.HALF_WIDTH - TableGeometry.BALL_RADIUS * 2.4f
 
-    private fun speedOf(power: Float): Float =
-        GameSession.MIN_SHOT_SPEED +
-            power.coerceIn(0f, 1f) * (GameSession.MAX_SHOT_SPEED - GameSession.MIN_SHOT_SPEED)
+    private fun speedOf(power: Float): Float = GameSession.speedForPower(power)
+
+    /** The bar position that produces [speed]. */
+    private fun powerFor(speed: Float): Float = GameSession.powerForSpeed(speed)
 
     /** Box-Muller, clamped so the robot never produces an absurd outlier. */
     private fun gaussian(): Float {
@@ -502,12 +506,22 @@ class RobotPlayer(
         private const val MIN_VIABLE_QUALITY = 0.012f
         private const val POT_FAILED_THRESHOLD = 20f
         private val SAFETY_OFFSETS = floatArrayOf(-0.85f, -0.45f, 0f, 0.45f, 0.85f)
-        private val SAFETY_POWERS = floatArrayOf(0.14f, 0.22f, 0.33f, 0.48f)
+
+        /**
+         * Speeds, not positions on the power bar.
+         *
+         * The bar's shape is a feel decision that gets tuned; a safety written as "0.14"
+         * quietly became a shot that could not reach a cushion the moment it changed. A
+         * speed means the same thing whatever the bar looks like.
+         */
+        private val SAFETY_SPEEDS = floatArrayOf(1.7f, 2.4f, 3.3f, 4.6f)
+        private val ESCAPE_SPEEDS = floatArrayOf(3.4f, 4.8f, 6.3f)
+        private val POKE_SPEED_RANGE = 3.9f..6.4f
+
         private val PLACEMENT_DISTANCES = floatArrayOf(0.22f, 0.36f, 0.55f)
         private const val LEGAL_SHOT_THRESHOLD = -200f
         private const val SCAN_STEPS = 240
         private const val MAX_ESCAPE_HEADINGS = 8
-        private val ESCAPE_POWERS = floatArrayOf(0.34f, 0.5f, 0.68f)
         private val TWO_PI = (Math.PI * 2.0).toFloat()
     }
 }

@@ -161,7 +161,7 @@ class GameSession(
      */
     fun shoot(direction: Vec2, power: Float, sideSpin: Float = 0f, topSpin: Float = 0f) {
         if (!canAim) return
-        val speed = MIN_SHOT_SPEED + power.coerceIn(0f, 1f) * (MAX_SHOT_SPEED - MIN_SHOT_SPEED)
+        val speed = speedForPower(power)
         events = ShotEvents()
         physics.resetClock()
         physics.strike(direction, speed, sideSpin.coerceIn(-1f, 1f), topSpin.coerceIn(-1f, 1f))
@@ -409,8 +409,54 @@ class GameSession(
     }
 
     companion object {
-        const val MIN_SHOT_SPEED = 0.55f
+        const val MIN_SHOT_SPEED = 0.5f
+
+        /**
+         * Speed of a full power break, in m/s.
+         *
+         * This has to stay high: a break must scatter the rack and send four balls to a
+         * cushion, or it is a foul. Lowering it to calm the game down made the robot break
+         * illegally one game in four. The game is calmed down instead by [TABLE_TIME_SCALE]
+         * and by the shape of the power bar, neither of which weakens the shot itself.
+         */
         const val MAX_SHOT_SPEED = 9.0f
+
+        /**
+         * How fast the table runs compared with real time.
+         *
+         * The physics is untouched by this — a shot travels exactly as far as it would —
+         * but the table is only 2.24m long, and at full speed the balls cross it faster
+         * than the eye can follow on a phone.
+         */
+        const val TABLE_TIME_SCALE = 0.72f
+
+        /**
+         * How sharply the power bar ramps up.
+         *
+         * A straight line wastes the bar: nearly every shot in a game of pool is a gentle
+         * one, and on a linear scale they are all crammed into the bottom centimetre while
+         * the top half is a row of breaks. Curving it spreads the soft shots out where the
+         * player can pick between them, and keeps the real hammer for the very top.
+         */
+        private const val POWER_CURVE = 1.8f
+
+        /** The one place the power bar becomes a speed. */
+        fun speedForPower(power: Float): Float {
+            val fraction = power.coerceIn(0f, 1f)
+            val eased = Math.pow(fraction.toDouble(), POWER_CURVE.toDouble()).toFloat()
+            return MIN_SHOT_SPEED + eased * (MAX_SHOT_SPEED - MIN_SHOT_SPEED)
+        }
+
+        /**
+         * The exact inverse, so the robot can ask for a speed and get back the setting that
+         * produces it. If these two ever disagreed, every shot the robot planned would
+         * arrive at the wrong pace.
+         */
+        fun powerForSpeed(speed: Float): Float {
+            val span = MAX_SHOT_SPEED - MIN_SHOT_SPEED
+            val eased = ((speed - MIN_SHOT_SPEED) / span).coerceIn(0f, 1f)
+            return Math.pow(eased.toDouble(), 1.0 / POWER_CURVE).toFloat()
+        }
     }
 }
 

@@ -206,7 +206,10 @@ class GameController(
     // ---------------------------------------------------------------------- per frame
 
     fun update(dt: Float) {
-        val step = dt.coerceIn(0f, 0.05f)
+        // The table is run a little slower than real time. The physics is not changed by
+        // this — a shot travels exactly as far as it would — but a break at full speed
+        // crosses a 2.24m table faster than the eye can follow it on a phone.
+        val step = dt.coerceIn(0f, 0.05f) * GameSession.TABLE_TIME_SCALE
 
         applyRobotDecision()
 
