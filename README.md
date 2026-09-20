@@ -151,6 +151,19 @@ tapered cue are generated as meshes, lit with a Blinn-Phong shader.
 Controls: drag with one finger to aim, drag with two to orbit, pinch to zoom, drag the power
 bar for speed, and open the spin pad to move the tip off centre.
 
+## Installing it on a phone
+
+Every push to `main` publishes the APK to the
+[latest release](../../releases/latest/download/app-debug.apk). Open that link on an Android
+phone, tap the downloaded file, and allow installation from unknown sources. No GitHub login
+and no unzipping.
+
+Needs Android 7.0 or newer and a device with OpenGL ES 3.0, which is anything made in roughly
+the last decade.
+
+Online play is switched off in those builds — they are compiled without a match server URL —
+so the online screen explains what is missing and everything else plays normally.
+
 ## Building
 
 Open the project in Android Studio (Koala or newer) and run, or from the command line with
