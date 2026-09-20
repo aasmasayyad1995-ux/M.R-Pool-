@@ -33,9 +33,9 @@ class PoolRenderer(
     @Volatile
     private var yaw: Float = -HALF_PI
     @Volatile
-    private var pitch: Float = 1.02f
+    private var pitch: Float = DEFAULT_PITCH
     @Volatile
-    private var distance: Float = 2.55f
+    private var distance: Float = DEFAULT_DISTANCE
     @Volatile
     private var followCueBall: Boolean = true
 
@@ -116,7 +116,9 @@ class PoolRenderer(
         viewportWidth = max(width, 1)
         viewportHeight = max(height, 1)
         val aspect = width.toFloat() / max(height, 1).toFloat()
-        Matrix.perspectiveM(projection, 0, 42f, aspect, 0.05f, 40f)
+        // A narrow field of view flattens the perspective. A wide one makes the near rail
+        // loom over the far one, which looks dramatic and makes angles hard to read.
+        Matrix.perspectiveM(projection, 0, FIELD_OF_VIEW, aspect, 0.05f, 40f)
     }
 
     override fun onDrawFrame(gl: GL10?) {
@@ -181,7 +183,8 @@ class PoolRenderer(
     /** Orbit the camera. Both values are in radians. */
     fun orbit(deltaYaw: Float, deltaPitch: Float) {
         yaw += deltaYaw
-        pitch = (pitch + deltaPitch).coerceIn(0.32f, 1.48f)
+        // The upper limit stops just short of straight down, where the view would flip.
+        pitch = (pitch + deltaPitch).coerceIn(0.30f, 1.52f)
     }
 
     /** Pinch zoom, [factor] > 1 moves the camera away. */
@@ -201,8 +204,8 @@ class PoolRenderer(
 
     /** Back to the wide table view. */
     fun snapOverhead() {
-        pitch = 1.32f
-        distance = 2.5f
+        pitch = DEFAULT_PITCH
+        distance = DEFAULT_DISTANCE
         yaw = -HALF_PI
     }
 
@@ -251,9 +254,12 @@ class PoolRenderer(
         draw(shader, quad, model, felt, 1f, feltTexture, unlit = false, shininess = 6f, specular = 0.03f)
 
         // Apron under the bed so the table reads as a solid object from a low camera.
+        // It must sit strictly below the cloth: the apron is wider than the playing
+        // surface, so a top face level with the cloth would be coplanar with it right
+        // across the table, and the two would z-fight into a shimmering patchwork.
         identity(model)
-        translate(model, 0f, -0.045f, 0f)
-        scale(model, frameHalfLength(), 0.045f, frameHalfWidth())
+        translate(model, 0f, -APRON_HEIGHT - APRON_GAP, 0f)
+        scale(model, frameHalfLength(), APRON_HEIGHT, frameHalfWidth())
         draw(shader, unitBox, model, rail, 1f, woodTexture, unlit = false, shininess = 18f, specular = 0.10f)
 
         drawCushions(shader)
@@ -416,14 +422,14 @@ class PoolRenderer(
 
     /** Foot spot and head string, printed on the cloth. */
     private fun drawSpots(shader: ShaderProgram) {
+        GLES30.glEnable(GLES30.GL_BLEND)
         identity(model)
-        translate(model, TableGeometry.FOOT_SPOT_X, 0.0008f, 0f)
+        translate(model, TableGeometry.FOOT_SPOT_X, MARKING_HEIGHT, 0f)
         scale(model, 0.009f, 1f, 0.009f)
         draw(shader, disc, model, 0xFFE8E2D0.toInt(), 0.75f, 0, true, 1f, 0f)
 
-        GLES30.glEnable(GLES30.GL_BLEND)
         identity(model)
-        translate(model, TableGeometry.HEAD_STRING_X, 0.0007f, 0f)
+        translate(model, TableGeometry.HEAD_STRING_X, MARKING_HEIGHT, 0f)
         scale(model, 0.0016f, 1f, TableGeometry.HALF_WIDTH)
         draw(shader, quad, model, 0xFFE8E2D0.toInt(), 0.28f, 0, true, 1f, 0f)
         GLES30.glDisable(GLES30.GL_BLEND)
@@ -684,6 +690,22 @@ class PoolRenderer(
     companion object {
         private const val HALF_PI = (Math.PI / 2.0).toFloat()
         private const val RAD_TO_DEG = (180.0 / Math.PI).toFloat()
+        /** Nearly overhead: enough tilt to read as 3D, flat enough to judge an angle by eye. */
+        private const val DEFAULT_PITCH = 1.34f
+        private const val DEFAULT_DISTANCE = 2.36f
+        private const val FIELD_OF_VIEW = 32f
+
+        /** Depth of the table body, and how far its top sits below the cloth. */
+        private const val APRON_HEIGHT = 0.045f
+        private const val APRON_GAP = 0.006f
+
+        /**
+         * Spots and lines printed on the cloth. Every flat thing drawn on the bed gets its
+         * own height — shadows at 1.2mm, these at 1.8mm, the aiming guide above them — so
+         * that no two of them ever share a plane where they cross.
+         */
+        private const val MARKING_HEIGHT = 0.0018f
+
         private const val CUSHION_DEPTH = 0.048f
         private const val CUSHION_HEIGHT = 0.019f
         private const val RAIL_WIDTH = 0.062f
