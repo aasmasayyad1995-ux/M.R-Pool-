@@ -112,12 +112,13 @@ class GameController(
         private set
 
     /**
-     * Where the finger went down to start drawing the cue back, or null when no pull is in
-     * progress. The distance from here, measured back along the aim line, is the power.
+     * True while the player has hold of the cue.
+     *
+     * During a pull the finger is the butt of the cue: where it sits relative to the cue
+     * ball gives both the line of the shot and how far the cue is drawn back.
      */
-    private var pullAnchor: Vec2? = null
-
-    val isPullingBack: Boolean get() = pullAnchor != null
+    var isPullingBack: Boolean = false
+        private set
 
     /** How far the cue is drawn back from the ball, in metres, for the renderer. */
     var cuePullback: Float = 0.05f
@@ -285,8 +286,6 @@ class GameController(
 
     fun setAimAngle(radians: Float) {
         if (!canPlayerAct()) return
-        // The shot is already wound up; swinging the aim now would send it somewhere else.
-        if (isPullingBack) return
         aimAngle = normalizeAngle(radians)
         cueHidden = false
         cuePullback = restingPullback(power)
@@ -318,21 +317,35 @@ class GameController(
         val cueBall = session.physics.cueBall ?: return false
         if (cueBall.pocketed) return false
         if (point.distanceTo(cueBall.position) > GRAB_RADIUS) return false
-        pullAnchor = point
+        isPullingBack = true
+        cueHidden = false
         setPowerInternal(0f)
         return true
     }
 
     /**
-     * Draws the cue back to wherever the finger is now.
+     * Moves the cue to wherever the finger is now.
      *
-     * Only the distance straight back along the aim line counts: sliding sideways slides
-     * along the cue rather than winding it up, which is what the hand expects.
+     * The finger holds the butt of the cue, so the shot goes the other way: the line from
+     * the finger through the cue ball is the line of the shot, and how far the finger is
+     * from the ball is how far the cue is drawn back. Pulling straight back therefore keeps
+     * the aim exactly where it was, and swinging the finger round swings the shot with it —
+     * one movement doing what a hand on a real cue does.
      */
     fun updatePull(point: Vec2) {
-        val anchor = pullAnchor ?: return
-        val back = (anchor - point).dot(Vec2.fromAngle(aimAngle))
-        setPowerInternal((back / MAX_PULL_DISTANCE).coerceIn(0f, 1f))
+        if (!isPullingBack) return
+        val cueBall = session.physics.cueBall ?: return
+        val fromBall = point - cueBall.position
+        val distance = fromBall.length()
+
+        // Right on top of the ball there is no line to read, and tiny movements there would
+        // send the cue spinning.
+        if (distance > AIM_DEAD_ZONE) {
+            aimAngle = normalizeAngle((-fromBall).angle())
+        }
+
+        val drawn = (distance - AIM_DEAD_ZONE).coerceAtLeast(0f)
+        setPowerInternal((drawn / MAX_PULL_DISTANCE).coerceIn(0f, 1f))
     }
 
     /**
@@ -342,8 +355,8 @@ class GameController(
      * @return true when the shot was taken
      */
     fun releasePull(): Boolean {
-        pullAnchor ?: return false
-        pullAnchor = null
+        if (!isPullingBack) return false
+        isPullingBack = false
         if (power < MINIMUM_SHOT_POWER) {
             setPowerInternal(RESTING_POWER)
             return false
@@ -354,8 +367,8 @@ class GameController(
 
     /** Abandons a pull without shooting. */
     fun cancelPull() {
-        if (pullAnchor == null) return
-        pullAnchor = null
+        if (!isPullingBack) return
+        isPullingBack = false
         setPowerInternal(RESTING_POWER)
     }
 
@@ -566,6 +579,14 @@ class GameController(
 
         /** How far back the cue is drawn for a full power shot, in metres. */
         const val MAX_PULL_DISTANCE = 0.42f
+
+        /**
+         * How far the finger must be from the cue ball before it starts steering the shot.
+         *
+         * Right on top of the ball there is no line to read, and without this the cue would
+         * spin wildly as the finger first moved.
+         */
+        const val AIM_DEAD_ZONE = 0.045f
 
         /** Below this, letting go puts the cue down again instead of playing the shot. */
         const val MINIMUM_SHOT_POWER = 0.06f

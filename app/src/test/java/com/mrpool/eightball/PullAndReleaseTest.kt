@@ -10,10 +10,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.random.Random
 
 /**
  * Drawing the cue back with a finger and letting go to play the shot.
+ *
+ * The finger holds the butt of the cue, so one movement sets both things a shot needs:
+ * the line it goes down and how hard it is hit.
  */
 class PullAndReleaseTest {
 
@@ -35,6 +40,17 @@ class PullAndReleaseTest {
     private fun behindBall(controller: GameController, distance: Float): Vec2 =
         cueBall(controller) - Vec2.fromAngle(controller.aimAngle) * distance
 
+    /** How far behind the ball the finger has to sit to wind the cue up to [power]. */
+    private fun distanceFor(power: Float): Float =
+        GameController.AIM_DEAD_ZONE + GameController.MAX_PULL_DISTANCE * power
+
+    /** The smaller angle between two headings, in radians. */
+    private fun angleBetween(a: Float, b: Float): Float {
+        var difference = abs(a - b) % (2f * PI.toFloat())
+        if (difference > PI.toFloat()) difference = 2f * PI.toFloat() - difference
+        return difference
+    }
+
     @Test
     fun `the cue is taken hold of by touching the ball, not the far end of the table`() {
         val controller = controller()
@@ -53,13 +69,13 @@ class PullAndReleaseTest {
         val controller = controller()
         controller.beginPull(cueBall(controller))
 
-        controller.updatePull(behindBall(controller, GameController.MAX_PULL_DISTANCE / 4f))
+        controller.updatePull(behindBall(controller, distanceFor(0.25f)))
         assertEquals(0.25f, controller.power, 0.02f)
 
-        controller.updatePull(behindBall(controller, GameController.MAX_PULL_DISTANCE / 2f))
+        controller.updatePull(behindBall(controller, distanceFor(0.5f)))
         assertEquals(0.5f, controller.power, 0.02f)
 
-        controller.updatePull(behindBall(controller, GameController.MAX_PULL_DISTANCE))
+        controller.updatePull(behindBall(controller, distanceFor(1f)))
         assertEquals(1f, controller.power, 0.02f)
     }
 
@@ -72,49 +88,84 @@ class PullAndReleaseTest {
     }
 
     @Test
-    fun `pushing the cue forwards does not wind it up`() {
+    fun `drawing straight back leaves the aim exactly where it was`() {
         val controller = controller()
+        val aimed = controller.aimAngle
         controller.beginPull(cueBall(controller))
-        // Forwards, towards the target: the opposite of drawing back.
-        controller.updatePull(behindBall(controller, -0.3f))
-        assertEquals(0f, controller.power, 1e-4f)
-    }
 
-    @Test
-    fun `sliding along the cue rather than back does not wind it up`() {
-        val controller = controller()
-        controller.beginPull(cueBall(controller))
-        val sideways = Vec2.fromAngle(controller.aimAngle).perpendicular() * 0.3f
-        controller.updatePull(cueBall(controller) + sideways)
+        controller.updatePull(behindBall(controller, distanceFor(0.3f)))
+        controller.updatePull(behindBall(controller, distanceFor(0.7f)))
+
         assertEquals(
-            "moving across the shot should not add power",
-            0f,
-            controller.power,
+            "pulling back along the line of the shot must not move the line",
+            aimed,
+            controller.aimAngle,
             1e-4f
         )
     }
 
     @Test
-    fun `the aim holds still once the cue is drawn back`() {
+    fun `swinging the finger round swings the shot with it`() {
+        val controller = controller()
+        controller.beginPull(cueBall(controller))
+        controller.updatePull(behindBall(controller, distanceFor(0.5f)))
+        val aimed = controller.aimAngle
+
+        // Round to the side, the same distance from the ball: same power, new line.
+        val swung = cueBall(controller) -
+            Vec2.fromAngle(aimed + 0.6f) * distanceFor(0.5f)
+        controller.updatePull(swung)
+
+        assertEquals(
+            "the shot should now go where the cue points",
+            0.6f,
+            angleBetween(aimed, controller.aimAngle),
+            0.02f
+        )
+        assertEquals(
+            "swinging round should not change how hard the ball is hit",
+            0.5f,
+            controller.power,
+            0.02f
+        )
+    }
+
+    @Test
+    fun `carrying the finger past the ball turns the shot round`() {
         val controller = controller()
         val aimed = controller.aimAngle
         controller.beginPull(cueBall(controller))
-        controller.updatePull(behindBall(controller, 0.2f))
+        // Past the ball, onto the side it was aimed at: the cue is now behind it the other way.
+        controller.updatePull(behindBall(controller, -distanceFor(0.4f)))
 
-        controller.aimAt(cueBall(controller) + Vec2(0.5f, 0.5f))
         assertEquals(
-            "the shot was already wound up; the aim must not swing under it",
-            aimed,
-            controller.aimAngle,
-            1e-5f
+            "the shot should have turned about",
+            PI.toFloat(),
+            angleBetween(aimed, controller.aimAngle),
+            0.02f
         )
+        assertEquals(0.4f, controller.power, 0.02f)
+    }
+
+    @Test
+    fun `a finger resting on the ball does not send the cue spinning`() {
+        val controller = controller()
+        val aimed = controller.aimAngle
+        controller.beginPull(cueBall(controller))
+
+        // Small wanders right on top of the ball, where there is no line to read.
+        controller.updatePull(cueBall(controller) + Vec2(0.01f, -0.02f))
+        controller.updatePull(cueBall(controller) + Vec2(-0.02f, 0.005f))
+
+        assertEquals("the cue must hold still under the ball", aimed, controller.aimAngle, 1e-4f)
+        assertEquals("and stay unwound", 0f, controller.power, 1e-4f)
     }
 
     @Test
     fun `letting go plays the shot`() {
         val controller = controller()
         controller.beginPull(cueBall(controller))
-        controller.updatePull(behindBall(controller, GameController.MAX_PULL_DISTANCE * 0.8f))
+        controller.updatePull(behindBall(controller, distanceFor(0.8f)))
 
         assertTrue("letting go should have played the shot", controller.releasePull())
         assertFalse(controller.isPullingBack)
@@ -129,10 +180,40 @@ class PullAndReleaseTest {
     }
 
     @Test
+    fun `the shot goes down the line the finger left the cue on`() {
+        val controller = controller()
+        controller.beginPull(cueBall(controller))
+        controller.updatePull(behindBall(controller, distanceFor(0.6f)))
+
+        // Swing round late, just before letting go.
+        val swung = cueBall(controller) -
+            Vec2.fromAngle(controller.aimAngle + 0.5f) * distanceFor(0.6f)
+        controller.updatePull(swung)
+        val aimed = controller.aimAngle
+        controller.releasePull()
+
+        // Play the stroke out until the tip arrives and the ball sets off.
+        var elapsed = 0f
+        while (elapsed < 2f && controller.session.physics.cueBall!!.velocity.length() < 0.1f) {
+            controller.update(1f / 60f)
+            elapsed += 1f / 60f
+        }
+
+        val travelling = controller.session.physics.cueBall!!.velocity
+        assertTrue("the cue ball should be moving", travelling.length() > 0.1f)
+        assertEquals(
+            "the ball must set off down the line the cue was left on",
+            0f,
+            angleBetween(aimed, travelling.angle()),
+            0.05f
+        )
+    }
+
+    @Test
     fun `letting go without drawing back does not waste the shot`() {
         val controller = controller()
         controller.beginPull(cueBall(controller))
-        controller.updatePull(behindBall(controller, 0.005f))
+        controller.updatePull(behindBall(controller, GameController.AIM_DEAD_ZONE + 0.005f))
 
         assertFalse("a tap should not fire the cue", controller.releasePull())
         assertFalse(controller.isPullingBack)
@@ -150,7 +231,7 @@ class PullAndReleaseTest {
     fun `a pull can be abandoned`() {
         val controller = controller()
         controller.beginPull(cueBall(controller))
-        controller.updatePull(behindBall(controller, GameController.MAX_PULL_DISTANCE))
+        controller.updatePull(behindBall(controller, distanceFor(1f)))
         controller.cancelPull()
 
         assertFalse(controller.isPullingBack)
@@ -166,7 +247,7 @@ class PullAndReleaseTest {
     fun `the cue cannot be drawn back while the balls are still moving`() {
         val controller = controller()
         controller.beginPull(cueBall(controller))
-        controller.updatePull(behindBall(controller, GameController.MAX_PULL_DISTANCE))
+        controller.updatePull(behindBall(controller, distanceFor(1f)))
         controller.releasePull()
 
         var elapsed = 0f
@@ -187,7 +268,7 @@ class PullAndReleaseTest {
         assertFalse(controller.uiState.value.pullingBack)
 
         controller.beginPull(cueBall(controller))
-        controller.updatePull(behindBall(controller, GameController.MAX_PULL_DISTANCE / 2f))
+        controller.updatePull(behindBall(controller, distanceFor(0.5f)))
 
         val state = controller.uiState.value
         assertTrue(state.pullingBack)
