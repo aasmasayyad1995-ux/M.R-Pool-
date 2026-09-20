@@ -32,8 +32,9 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      # The commit goes into the APK, so the lobby can say which build it is.
       - name: Build the APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug -PbuildId=${{ github.sha }} --stacktrace
 
       - name: Attach the APK to this run
         uses: actions/upload-artifact@v4
@@ -53,6 +54,8 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           NOTES="Debug build of $GITHUB_SHA, built automatically from main.
+          The lobby shows \`build ${GITHUB_SHA:0:7}\` in its bottom corner, so you can
+          tell at a glance which build a phone is actually running.
 
           Download **app-debug.apk** below, tap it on an Android phone and allow
           installation from unknown sources. Needs Android 7.0 or newer and OpenGL ES 3.0.
