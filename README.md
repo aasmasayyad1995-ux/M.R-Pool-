@@ -77,6 +77,33 @@ Standard 8 ball, including the parts most pool games skip:
 * A fixed internal timestep independent of the display's frame rate — so the shot the robot
   rehearsed is exactly the shot you watch.
 
+## Online play
+
+Two devices play the same game without streaming a single ball position.
+
+Pool is turn based, so a whole shot is four numbers — angle, power, side spin, top spin —
+and both devices replay it through the identical deterministic simulation. That works
+because the physics already runs on a fixed internal timestep that does not depend on either
+device's frame rate; it was built that way so the robot's rehearsals would match what the
+player sees, and online play falls out of the same property. A whole match costs a few
+hundred bytes.
+
+Floating point on two different CPUs is not guaranteed to agree to the last bit, and a
+billiard break amplifies a tiny difference quickly, so after every move each device
+fingerprints its table (`StateChecksum`, quantised to a tenth of a millimetre — a
+four-hundredth of a ball). If the two fingerprints disagree, the host's table is the
+authority: it publishes a snapshot and the guest adopts it, rules state and all.
+
+`OnlineMatch` holds no Android or database types, so two of them can be wired to each other
+in a unit test and made to play a whole game — which is exactly what the tests do.
+
+Getting in: **Quick Match** takes whoever is waiting in the queue, or **Create a Room** gives
+you a five character code to read out. The alphabet leaves out the characters that sound
+alike over a phone: no O or 0, no I, L or 1, no S or 5.
+
+Online play needs a Firebase project — see [firebase/README.md](firebase/README.md). Without
+one the rest of the game is unaffected and the online screen says what is missing.
+
 ## Sound
 
 Every sound is synthesised at runtime too, so the APK still ships without a single asset.
@@ -125,6 +152,7 @@ app/src/main/java/com/mrpool/eightball/
 ├── game/                    vectors, balls, table geometry, physics, 8 ball rules, controller
 ├── ai/                      aim solver, shot candidates, the three robots
 ├── audio/                   procedural sound synthesis and playback
+├── net/                     lockstep online play, matchmaking, Firebase transport
 ├── data/                    12 cues, 20 tables, profile and persistence
 ├── render/                  OpenGL ES 3.0 renderer, meshes, procedural textures
 └── ui/                      Compose lobby, shops, wallet, rules and the in game HUD

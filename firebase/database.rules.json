@@ -1,0 +1,30 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['hostId', 'seed'])",
+        "moves": {
+          "$index": {
+            ".validate": "$index.matches(/^[0-9]+$/) && newData.hasChildren(['v', 'type', 'seat'])"
+          }
+        },
+        "hash": {
+          "$index": {
+            "$device": {
+              ".validate": "newData.isString() && newData.val().length <= 32"
+            }
+          }
+        }
+      }
+    },
+    "queue": {
+      ".read": true,
+      "$device": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['name', 'createdAt'])"
+      }
+    }
+  }
+}

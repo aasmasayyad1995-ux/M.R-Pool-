@@ -47,6 +47,7 @@ import com.mrpool.eightball.game.BallGroup
 import com.mrpool.eightball.game.GameController
 import com.mrpool.eightball.game.GamePhase
 import com.mrpool.eightball.game.GameUiState
+import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.render.PoolRenderer
 import com.mrpool.eightball.render.PoolSurfaceView
 import com.mrpool.eightball.render.SceneStyle
@@ -63,6 +64,7 @@ fun GameScreen(
     difficulty: RobotDifficulty?,
     prize: Int,
     audio: SoundPlayer?,
+    online: OnlineMatch? = null,
     soundEnabled: Boolean,
     onToggleSound: () -> Unit,
     onFinished: (won: Boolean) -> Unit,
@@ -71,7 +73,7 @@ fun GameScreen(
     onExit: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    val controller = remember(cue.id, table.id, difficulty) {
+    val controller = remember(cue.id, table.id, difficulty, online) {
         GameController(
             cue = cue,
             table = table,
@@ -79,7 +81,8 @@ fun GameScreen(
             playerName = "You",
             opponentName = difficulty?.let { "${it.label} Bot" } ?: "Friend",
             scope = scope,
-            audio = audio
+            audio = audio,
+            online = online
         )
     }
     val renderer = remember(controller) { PoolRenderer(controller, SceneStyle.from(table, cue)) }
@@ -185,6 +188,36 @@ fun GameScreen(
             }
         }
 
+        state.onlineNotice?.let { notice ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 96.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xCC2A1416))
+                    .border(1.dp, Crimson.copy(alpha = 0.6f), RoundedCornerShape(50))
+                    .padding(horizontal = 18.dp, vertical = 8.dp)
+            ) {
+                Text(notice, color = Crimson, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+
+        if (state.waitingForOpponent) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xAA0D1315))
+                    .padding(horizontal = 18.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    "Waiting for ${state.currentPlayerName}…",
+                    color = Cyan,
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
+
         if (state.robotThinking) {
             Box(
                 modifier = Modifier
@@ -204,6 +237,7 @@ fun GameScreen(
         if (state.phase == GamePhase.GAME_OVER) {
             ResultDialog(
                 won = state.humanWon,
+                allowRematch = online == null,
                 isFriendMatch = difficulty == null,
                 winnerName = state.winner?.let { controller.session.playerAt(it).name } ?: "",
                 prize = prize,
@@ -430,6 +464,7 @@ private fun PlayerPlate(
 @Composable
 private fun ResultDialog(
     won: Boolean,
+    allowRematch: Boolean,
     isFriendMatch: Boolean,
     winnerName: String,
     prize: Int,
@@ -477,15 +512,26 @@ private fun ResultDialog(
                 Button(
                     onClick = onLobby,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A3134)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (allowRematch) Color(0xFF2A3134) else Gold
+                    ),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("Lobby", color = Chalk) }
-                Button(
-                    onClick = onRematch,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Gold),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("Rematch", color = Ink, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text(
+                        "Lobby",
+                        color = if (allowRematch) Chalk else Ink,
+                        fontWeight = if (allowRematch) FontWeight.Normal else FontWeight.Bold
+                    )
+                }
+                // A rematch online would need both players to agree to one.
+                if (allowRematch) {
+                    Button(
+                        onClick = onRematch,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text("Rematch", color = Ink, fontWeight = FontWeight.Bold) }
+                }
             }
         }
     }
