@@ -10,7 +10,7 @@ skill levels, and a coin economy with 12 cue sticks and 20 tables to unlock.
 
 | Option | What it does |
 | --- | --- |
-| **Play with Robot** | Pick Beginner, Medium or Hard, pay the table's entry fee and play for coins. |
+| **Play with Robot** | Pick Beginner, Medium or Hard. Free to play, and a win pays 25, 50 or 100 coins. |
 | **Play with Friend** | Two players on one device. No entry fee. |
 | **Choose Cue Stick** | 12 cues. The house cue is free, the rest start at **200 coins**. |
 | **Table Selection** | 20 tables. The local club is free, the rest start at **1,000 coins**. |
@@ -24,9 +24,9 @@ round robin the robots played against each other (`Harness` style run of the shi
 
 | Level | Pots per shot | Fouls | vs Beginner | vs Medium | How it thinks |
 | --- | --- | --- | --- | --- | --- |
-| **Beginner** | 0.27 | 21.9% | — | 1 / 12 | Picks a ball by eye, aims roughly, hits too hard, never plans the next shot. |
-| **Medium** | 0.47 | 8.9% | 8 / 12 | — | Picks the right ball, rehearses a handful of options, controls speed, plays safe when stuck. |
-| **Hard** | 0.67 | 3.7% | 12 / 12 | 10 / 12 | Champion level: rehearses every candidate shot in the physics engine, values where the cue ball finishes, hooks you with a safety when nothing is on, and banks off cushions to escape a snooker. |
+| **Beginner** | 0.27 | 21.9% | — | 1 / 12 | Picks a ball by eye, aims roughly, hits too hard, never plans the next shot. Pays **25** to beat. |
+| **Medium** | 0.47 | 8.9% | 8 / 12 | — | Picks the right ball, rehearses a handful of options, controls speed, plays safe when stuck. Pays **50**. |
+| **Hard** | 0.67 | 3.7% | 12 / 12 | 10 / 12 | Champion level: rehearses every candidate shot in the physics engine, values where the cue ball finishes, hooks you with a safety when nothing is on, and banks off cushions to escape a snooker. Pays **100**. |
 
 Difficulty is not a random number bolted onto a perfect aimer. Each level differs in aim
 error, speed control, how many candidate shots it rehearses, whether it weighs position,
@@ -37,11 +37,12 @@ whether it plays safeties and whether it uses spin — see `ai/RobotDifficulty.k
 Coins are in-game currency only. Nothing in this app costs real money and there is no
 payment code anywhere in it.
 
-* Every match against the robot charges the entry fee of the table you are on (50 coins on
-  the free table, up to 12,000 on the championship table).
-* The prize is the table's base prize multiplied by the difficulty: **x1.5** beginner,
-  **x2.5** medium, **x4** hard.
-* Daily bonus of 250 coins, an automatic top up if you go broke, and playing a friend is free.
+* **Every match is free to play**, against the robot and against a friend alike.
+* What a win pays depends only on the robot you beat: **25** for the beginner, **50** for
+  the medium, **100** for the hard one.
+* The table is never a cost of admission — it changes how the cloth runs and how the game
+  looks, nothing else.
+* Daily bonus of 50 coins, worth one win against the medium robot.
 
 ## Rules implemented
 

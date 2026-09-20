@@ -25,8 +25,11 @@ data class PlayerProfile(
 
     companion object {
         const val STARTING_COINS = 1500
-        const val DAILY_BONUS = 250
-        /** Handed out when the player is broke so a match is always reachable. */
-        const val BAILOUT_COINS = 150
+
+        /**
+         * Worth one win against the medium robot, so showing up each day helps without
+         * making the matches themselves pointless.
+         */
+        const val DAILY_BONUS = 50
     }
 }

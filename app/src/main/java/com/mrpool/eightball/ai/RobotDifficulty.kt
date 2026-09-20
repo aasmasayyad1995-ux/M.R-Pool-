@@ -26,7 +26,8 @@ enum class RobotDifficulty(
     val usesSpin: Boolean,
     /** Seconds the robot appears to think for. */
     val thinkSeconds: Float,
-    val rewardMultiplier: Float
+    /** Coins paid for beating this robot. Beating a better robot is worth more. */
+    val reward: Int
 ) {
     BEGINNER(
         label = "Beginner",
@@ -39,7 +40,7 @@ enum class RobotDifficulty(
         playsSafeties = false,
         usesSpin = false,
         thinkSeconds = 0.9f,
-        rewardMultiplier = 1.5f
+        reward = 25
     ),
     MEDIUM(
         label = "Medium",
@@ -52,7 +53,7 @@ enum class RobotDifficulty(
         playsSafeties = true,
         usesSpin = true,
         thinkSeconds = 1.3f,
-        rewardMultiplier = 2.5f
+        reward = 50
     ),
     HARD(
         label = "Hard",
@@ -65,7 +66,7 @@ enum class RobotDifficulty(
         playsSafeties = true,
         usesSpin = true,
         thinkSeconds = 1.7f,
-        rewardMultiplier = 4.0f
+        reward = 100
     );
 
     companion object {

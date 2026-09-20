@@ -53,7 +53,7 @@ private sealed interface Screen {
     data object Wallet : Screen
     data object HowToPlay : Screen
     data object RobotSetup : Screen
-    data class Match(val difficulty: RobotDifficulty?, val stake: Int, val prize: Int) : Screen
+    data class Match(val difficulty: RobotDifficulty?, val prize: Int) : Screen
 }
 
 /** Top level navigation, coin handling and shop purchases. */
@@ -83,15 +83,9 @@ private fun MrPoolApp() {
     }
 
     fun startRobotMatch(difficulty: RobotDifficulty) {
-        val table = profile.equippedTable
-        val stake = table.stake
-        if (!store.payStake(stake)) {
-            store.bailoutIfBroke(stake)
-            toast("Not enough coins for this table — try a cheaper one")
-            return
-        }
-        audio.play(Sound.COINS, 0.7f)
-        screen = Screen.Match(difficulty, stake, store.prizeFor(table, difficulty))
+        // Matches are free to enter; the reward comes from the robot you beat.
+        audio.play(Sound.TAP, 0.6f)
+        screen = Screen.Match(difficulty, store.prizeFor(difficulty))
     }
 
     BackHandler(enabled = screen != Screen.Lobby) {
@@ -102,7 +96,7 @@ private fun MrPoolApp() {
         Screen.Lobby -> LobbyScreen(
             profile = profile,
             onPlayRobot = { go(Screen.RobotSetup) },
-            onPlayFriend = { go(Screen.Match(null, 0, 0)) },
+            onPlayFriend = { go(Screen.Match(null, 0)) },
             onChooseCue = { go(Screen.Cues) },
             onChooseTable = { go(Screen.Tables) },
             onHowToPlay = { go(Screen.HowToPlay) },
@@ -199,21 +193,10 @@ private fun MrPoolApp() {
                 if (current.difficulty != null) {
                     val payout = store.settleMatch(won, current.prize)
                     if (won) toast("You won $payout coins")
-                    store.bailoutIfBroke(profile.equippedTable.stake)
                 }
             },
-            onRematchAllowed = {
-                if (current.difficulty == null) {
-                    true
-                } else {
-                    val paid = store.payStake(current.stake)
-                    if (!paid) {
-                        store.bailoutIfBroke(current.stake)
-                        toast("Not enough coins for another rack")
-                    }
-                    paid
-                }
-            },
+            // Nothing to pay, so another rack is always on.
+            onRematchAllowed = { true },
             onExit = { go(Screen.Lobby) }
         )
     }

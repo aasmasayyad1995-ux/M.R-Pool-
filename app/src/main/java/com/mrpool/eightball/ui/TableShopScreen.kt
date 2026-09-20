@@ -96,7 +96,8 @@ private fun TableCard(
                 color = Chalk.copy(alpha = 0.5f)
             )
             Text(
-                "Stake ${formatCoins(table.stake)} · Prize ${formatCoins(table.basePrize)}+",
+                if (table.isFree) "Free · plays slow and forgiving"
+                else "${formatCoins(table.price)} coins · free to play on",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Gold.copy(alpha = 0.85f)
             )

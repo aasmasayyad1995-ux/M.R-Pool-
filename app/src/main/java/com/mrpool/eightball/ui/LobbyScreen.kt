@@ -163,7 +163,7 @@ fun LobbyScreen(
             )
             MenuTile(
                 title = "Coins & Rewards",
-                subtitle = "Daily bonus, prize money and match stakes",
+                subtitle = "Daily bonus and what each robot pays",
                 icon = Icons.Filled.Paid,
                 accent = Gold,
                 modifier = Modifier.fillMaxWidth(),
