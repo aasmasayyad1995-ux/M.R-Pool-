@@ -2,6 +2,7 @@ package com.mrpool.eightball
 
 import com.mrpool.eightball.game.Ball
 import com.mrpool.eightball.game.ClothProperties
+import com.mrpool.eightball.game.CollisionListener
 import com.mrpool.eightball.game.PoolPhysics
 import com.mrpool.eightball.game.Rack
 import com.mrpool.eightball.game.ShotEvents
@@ -10,6 +11,7 @@ import com.mrpool.eightball.game.Vec2
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
@@ -130,6 +132,87 @@ class PoolPhysicsTest {
             }
         }
         assertNotNull(balls.firstOrNull { it.number == 8 })
+    }
+
+    /** Records the impacts a shot produces, standing in for the audio layer. */
+    private class RecordingListener : CollisionListener {
+        val ballHits = mutableListOf<Float>()
+        val cushionHits = mutableListOf<Float>()
+        val pocketed = mutableListOf<Int>()
+        var cueStrikes = 0
+
+        override fun onBallCollision(speed: Float, position: Vec2, cueBallInvolved: Boolean) {
+            ballHits.add(speed)
+        }
+
+        override fun onCushionCollision(speed: Float, position: Vec2) {
+            cushionHits.add(speed)
+        }
+
+        override fun onPocketed(ballNumber: Int, speed: Float) {
+            pocketed.add(ballNumber)
+        }
+
+        override fun onCueStrike(speed: Float) {
+            cueStrikes++
+        }
+    }
+
+    @Test
+    fun `impacts are reported as they happen`() {
+        val target = Ball(1, Vec2(0.3f, 0f))
+        val cue = Ball(0, Vec2(-0.6f, 0f))
+        val physics = world(cue, target)
+        val listener = RecordingListener()
+        physics.collisionListener = listener
+
+        physics.strike(Vec2(1f, 0f), 4f, 0f, 0f)
+        physics.simulateUntilRest(25f)
+
+        assertEquals("the cue strike should be reported once", 1, listener.cueStrikes)
+        assertTrue("the ball on ball hit was not reported", listener.ballHits.isNotEmpty())
+        assertTrue(
+            "the closing speed should be close to the shot speed, was ${listener.ballHits.first()}",
+            listener.ballHits.first() > 2.5f
+        )
+        assertTrue("the object ball should have reached a cushion", listener.cushionHits.isNotEmpty())
+    }
+
+    @Test
+    fun `a potted ball is reported to the listener`() {
+        val pocket = TableGeometry.pockets.first { it.id.name == "TOP_RIGHT" }
+        val target = Ball(1, Vec2(0.55f, 0.28f))
+        val potLine = (TableGeometry.aimPoint(pocket) - target.position).normalized()
+        val cue = Ball(0, target.position - potLine * 0.45f)
+        val physics = world(cue, target)
+        val listener = RecordingListener()
+        physics.collisionListener = listener
+
+        physics.strike(potLine, 2.6f, 0f, 0f)
+        physics.simulateUntilRest(25f)
+
+        assertTrue("the drop was not reported", listener.pocketed.contains(1))
+    }
+
+    @Test
+    fun `a rehearsal on a copied table is silent`() {
+        // The robot plays out dozens of shots per turn on copies of the table. If a copy
+        // carried the listener every one of them would fire sounds for a shot the player
+        // has not taken yet.
+        val physics = PoolPhysics(Rack.build(Random(9)), ClothProperties.TOURNAMENT)
+        val listener = RecordingListener()
+        physics.collisionListener = listener
+
+        val rehearsal = physics.copy()
+        assertNull("the copy must not carry the listener", rehearsal.collisionListener)
+
+        rehearsal.strike(Vec2(1f, 0.01f).normalized(), 9f, 0f, 0f)
+        rehearsal.simulateUntilRest(30f)
+
+        assertEquals("a rehearsal fired a cue strike", 0, listener.cueStrikes)
+        assertTrue("a rehearsal fired ball impacts", listener.ballHits.isEmpty())
+        assertTrue("a rehearsal fired cushion impacts", listener.cushionHits.isEmpty())
+        assertTrue("a rehearsal fired pocket drops", listener.pocketed.isEmpty())
     }
 
     @Test

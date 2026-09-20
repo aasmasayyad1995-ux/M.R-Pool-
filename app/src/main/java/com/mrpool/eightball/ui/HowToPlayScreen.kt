@@ -93,13 +93,15 @@ private val LESSONS = listOf(
             "opponent cannot see theirs. The hard robot does exactly this, and it wins games."
     ),
     Lesson(
-        "Coins, stakes and prizes",
-        "Every match against the robot has an entry fee set by the table you are playing on, and " +
-            "the prize scales with the difficulty you choose.",
+        "Coins and prizes",
+        "Every match is free to play. What a win pays depends only on which robot you beat, " +
+            "so the tougher the opponent, the bigger the prize.",
         listOf(
-            "Beginner pays 1.5x the table prize, medium 2.5x and hard 4x.",
+            "Beat the beginner robot: 25 coins.",
+            "Beat the medium robot: 50 coins.",
+            "Beat the hard robot: 100 coins.",
             "Cues start at 200 coins, tables at 1,000 coins.",
-            "Claim the daily bonus from the Coins screen, and matches against a friend are free.",
+            "Claim the daily bonus from the Coins screen for another 50.",
             "Coins are in-game only — nothing here costs real money."
         )
     )

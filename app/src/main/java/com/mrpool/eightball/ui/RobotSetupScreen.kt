@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.data.PlayerProfile
 
-/** Difficulty picker, plus the stake and prize for the match that is about to start. */
+/** Difficulty picker, showing what beating each robot pays. */
 @Composable
 fun RobotSetupScreen(
     profile: PlayerProfile,
@@ -44,9 +44,7 @@ fun RobotSetupScreen(
 ) {
     var selected by remember { mutableStateOf(RobotDifficulty.MEDIUM) }
     val table = profile.equippedTable
-    val stake = table.stake
-    val prize = (table.basePrize * selected.rewardMultiplier).toInt()
-    val canAfford = profile.coins >= stake
+    val prize = selected.reward
 
     PoolBackground {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -67,7 +65,7 @@ fun RobotSetupScreen(
                     DifficultyCard(
                         difficulty = difficulty,
                         selected = difficulty == selected,
-                        prize = (table.basePrize * difficulty.rewardMultiplier).toInt(),
+                        prize = difficulty.reward,
                         onSelect = { selected = difficulty }
                     )
                 }
@@ -87,9 +85,9 @@ fun RobotSetupScreen(
                             color = Chalk.copy(alpha = 0.5f)
                         )
                         Text(
-                            formatCoins(stake),
+                            "FREE",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Crimson
+                            color = Color(0xFF4CC38A)
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
@@ -108,19 +106,15 @@ fun RobotSetupScreen(
 
                 Button(
                     onClick = { onStart(selected) },
-                    enabled = canAfford,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 24.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (canAfford) Gold else Color(0xFF32383B)
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        if (canAfford) "Break them — pay ${formatCoins(stake)}"
-                        else "Not enough coins for this table",
-                        color = if (canAfford) Ink else Chalk.copy(alpha = 0.6f),
+                        "Break them — win ${formatCoins(prize)}",
+                        color = Ink,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(vertical = 6.dp)
                     )
@@ -184,14 +178,14 @@ private fun DifficultyCard(
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                "x${difficulty.rewardMultiplier}",
-                style = MaterialTheme.typography.titleMedium,
-                color = accent
+                formatCoins(prize),
+                style = MaterialTheme.typography.titleLarge,
+                color = Gold
             )
             Text(
-                formatCoins(prize),
+                "PER WIN",
                 style = MaterialTheme.typography.labelSmall,
-                color = Gold
+                color = Chalk.copy(alpha = 0.45f)
             )
         }
     }

@@ -4,6 +4,9 @@ import com.mrpool.eightball.ai.PlannedShot
 import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.ai.RobotPlayer
 import com.mrpool.eightball.data.CueStick
+import com.mrpool.eightball.audio.Sound
+import com.mrpool.eightball.audio.SoundPlayer
+import com.mrpool.eightball.audio.SoundSynth
 import com.mrpool.eightball.data.PoolTableSkin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +64,9 @@ class GameController(
     playerName: String,
     opponentName: String,
     private val scope: CoroutineScope,
-    private val random: Random = Random.Default
+    private val random: Random = Random.Default,
+    /** Null runs the game silently, which is what the head-less tests do. */
+    private val audio: SoundPlayer? = null
 ) {
 
     /** True when the second seat is played by a person on the same device. */
@@ -114,7 +119,45 @@ class GameController(
     private var robotIntent: String = ""
     private var wasShooting = false
 
+    /**
+     * Turns physics impacts into sounds.
+     *
+     * Attached to the live table only — [PoolPhysics.copy] drops it, so the robot's
+     * rehearsals stay silent however many shots it plays out.
+     */
+    private val soundListener = object : CollisionListener {
+        override fun onBallCollision(speed: Float, position: Vec2, cueBallInvolved: Boolean) {
+            val sound = if (speed > SOFT_CONTACT_SPEED) Sound.BALL_CLICK else Sound.BALL_KISS
+            audio?.play(
+                sound,
+                SoundSynth.volumeForImpact(speed),
+                SoundSynth.rateForImpact(speed)
+            )
+        }
+
+        override fun onCushionCollision(speed: Float, position: Vec2) {
+            audio?.play(
+                Sound.CUSHION,
+                SoundSynth.volumeForImpact(speed, reference = 3.6f) * 0.8f,
+                SoundSynth.rateForImpact(speed, reference = 3.6f)
+            )
+        }
+
+        override fun onPocketed(ballNumber: Int, speed: Float) {
+            audio?.play(Sound.POCKET, 0.85f, 0.94f + random.nextFloat() * 0.12f)
+        }
+
+        override fun onCueStrike(speed: Float) {
+            audio?.play(
+                Sound.CUE_STRIKE,
+                (0.35f + SoundSynth.volumeForImpact(speed, reference = 8f) * 0.65f),
+                SoundSynth.rateForImpact(speed, reference = 8f)
+            )
+        }
+    }
+
     init {
+        session.physics.collisionListener = soundListener
         aimAtNearestTarget()
         publish()
     }
@@ -129,6 +172,7 @@ class GameController(
     /** Starts a fresh rack with the same players. */
     fun rematch() {
         session = newSession()
+        session.physics.collisionListener = soundListener
         pendingShot = null
         robotDecision = null
         robotBusy = false
@@ -171,6 +215,7 @@ class GameController(
         if (session.phase == GamePhase.GAME_OVER && !matchReported) {
             matchReported = true
             val humanWon = session.winner == Seat.ONE
+            audio?.play(if (humanWon) Sound.WIN else Sound.LOSE, 0.9f)
             // update() runs on the GL thread; the listener pays out coins and shows a
             // toast, so it has to be handed back to the main thread.
             scope.launch { onMatchFinished?.invoke(humanWon) }
@@ -399,6 +444,8 @@ class GameController(
     }
 
     companion object {
+        /** Below this closing speed a contact is a kiss rather than a click. */
+        private const val SOFT_CONTACT_SPEED = 1.15f
         private const val STROKE_SECONDS = 0.16f
         private const val PLACEMENT_THINK_MILLIS = 700L
         private const val BASE_GUIDE_LENGTH = 0.55f

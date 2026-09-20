@@ -7,6 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import com.mrpool.eightball.ai.RobotDifficulty
+import com.mrpool.eightball.audio.GameAudio
+import com.mrpool.eightball.audio.Sound
 import com.mrpool.eightball.data.PlayerProfile
 import com.mrpool.eightball.data.ProfileStore
 import com.mrpool.eightball.data.PurchaseResult
@@ -49,7 +53,7 @@ private sealed interface Screen {
     data object Wallet : Screen
     data object HowToPlay : Screen
     data object RobotSetup : Screen
-    data class Match(val difficulty: RobotDifficulty?, val stake: Int, val prize: Int) : Screen
+    data class Match(val difficulty: RobotDifficulty?, val prize: Int) : Screen
 }
 
 /** Top level navigation, coin handling and shop purchases. */
@@ -60,42 +64,60 @@ private fun MrPoolApp() {
     val profile by store.profile.collectAsState()
     var screen by remember { mutableStateOf<Screen>(Screen.Lobby) }
 
+    val audio = remember { GameAudio(context) }
+    DisposableEffect(audio) {
+        onDispose { audio.release() }
+    }
+    LaunchedEffect(profile.soundEnabled) {
+        audio.enabled = profile.soundEnabled
+    }
+
     fun toast(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
+    /** Every navigation tap clicks, so the menus feel connected to the table. */
+    fun go(destination: Screen) {
+        audio.play(Sound.TAP, 0.55f)
+        screen = destination
+    }
+
     fun startRobotMatch(difficulty: RobotDifficulty) {
-        val table = profile.equippedTable
-        val stake = table.stake
-        if (!store.payStake(stake)) {
-            store.bailoutIfBroke(stake)
-            toast("Not enough coins for this table — try a cheaper one")
-            return
-        }
-        screen = Screen.Match(difficulty, stake, store.prizeFor(table, difficulty))
+        // Matches are free to enter; the reward comes from the robot you beat.
+        audio.play(Sound.TAP, 0.6f)
+        screen = Screen.Match(difficulty, store.prizeFor(difficulty))
     }
 
     BackHandler(enabled = screen != Screen.Lobby) {
-        screen = Screen.Lobby
+        go(Screen.Lobby)
     }
 
     when (val current = screen) {
         Screen.Lobby -> LobbyScreen(
             profile = profile,
-            onPlayRobot = { screen = Screen.RobotSetup },
-            onPlayFriend = { screen = Screen.Match(null, 0, 0) },
-            onChooseCue = { screen = Screen.Cues },
-            onChooseTable = { screen = Screen.Tables },
-            onHowToPlay = { screen = Screen.HowToPlay },
-            onWallet = { screen = Screen.Wallet }
+            onPlayRobot = { go(Screen.RobotSetup) },
+            onPlayFriend = { go(Screen.Match(null, 0)) },
+            onChooseCue = { go(Screen.Cues) },
+            onChooseTable = { go(Screen.Tables) },
+            onHowToPlay = { go(Screen.HowToPlay) },
+            onWallet = { go(Screen.Wallet) },
+            onToggleSound = {
+                val turningOn = !profile.soundEnabled
+                store.setSoundEnabled(turningOn)
+                audio.enabled = turningOn
+                if (turningOn) audio.play(Sound.TAP, 0.6f)
+            }
         )
 
         Screen.Cues -> CueShopScreen(
             profile = profile,
-            onBack = { screen = Screen.Lobby },
+            onBack = { go(Screen.Lobby) },
             onBuy = { cue ->
                 when (val result = store.buyCue(cue)) {
-                    is PurchaseResult.Success -> toast("${cue.name} unlocked and equipped")
+                    is PurchaseResult.Success -> {
+                        audio.play(Sound.COINS)
+                        toast("${cue.name} unlocked and equipped")
+                    }
                     is PurchaseResult.NotEnoughCoins ->
                         toast("You need ${result.missing} more coins")
                     PurchaseResult.AlreadyOwned -> store.equipCue(cue)
@@ -103,16 +125,20 @@ private fun MrPoolApp() {
             },
             onEquip = { cue ->
                 store.equipCue(cue)
+                audio.play(Sound.TAP, 0.6f)
                 toast("${cue.name} equipped")
             }
         )
 
         Screen.Tables -> TableShopScreen(
             profile = profile,
-            onBack = { screen = Screen.Lobby },
+            onBack = { go(Screen.Lobby) },
             onBuy = { table ->
                 when (val result = store.buyTable(table)) {
-                    is PurchaseResult.Success -> toast("${table.name} unlocked")
+                    is PurchaseResult.Success -> {
+                        audio.play(Sound.COINS)
+                        toast("${table.name} unlocked")
+                    }
                     is PurchaseResult.NotEnoughCoins ->
                         toast("You need ${result.missing} more coins")
                     PurchaseResult.AlreadyOwned -> store.equipTable(table)
@@ -120,6 +146,7 @@ private fun MrPoolApp() {
             },
             onEquip = { table ->
                 store.equipTable(table)
+                audio.play(Sound.TAP, 0.6f)
                 toast("Now playing on ${table.name}")
             }
         )
@@ -129,19 +156,24 @@ private fun MrPoolApp() {
             bonusAvailable = isBonusAvailable(profile),
             onClaimBonus = {
                 val granted = store.claimDailyBonus()
-                if (granted != null) toast("+$granted coins") else toast("Already claimed today")
+                if (granted != null) {
+                    audio.play(Sound.COINS)
+                    toast("+$granted coins")
+                } else {
+                    toast("Already claimed today")
+                }
             },
-            onBack = { screen = Screen.Lobby }
+            onBack = { go(Screen.Lobby) }
         )
 
         Screen.HowToPlay -> HowToPlayScreen(
             coins = profile.coins,
-            onBack = { screen = Screen.Lobby }
+            onBack = { go(Screen.Lobby) }
         )
 
         Screen.RobotSetup -> RobotSetupScreen(
             profile = profile,
-            onBack = { screen = Screen.Lobby },
+            onBack = { go(Screen.Lobby) },
             onStart = { difficulty -> startRobotMatch(difficulty) }
         )
 
@@ -150,26 +182,22 @@ private fun MrPoolApp() {
             table = profile.equippedTable,
             difficulty = current.difficulty,
             prize = current.prize,
+            audio = audio,
+            soundEnabled = profile.soundEnabled,
+            onToggleSound = {
+                val turningOn = !profile.soundEnabled
+                store.setSoundEnabled(turningOn)
+                audio.enabled = turningOn
+            },
             onFinished = { won ->
                 if (current.difficulty != null) {
                     val payout = store.settleMatch(won, current.prize)
                     if (won) toast("You won $payout coins")
-                    store.bailoutIfBroke(profile.equippedTable.stake)
                 }
             },
-            onRematchAllowed = {
-                if (current.difficulty == null) {
-                    true
-                } else {
-                    val paid = store.payStake(current.stake)
-                    if (!paid) {
-                        store.bailoutIfBroke(current.stake)
-                        toast("Not enough coins for another rack")
-                    }
-                    paid
-                }
-            },
-            onExit = { screen = Screen.Lobby }
+            // Nothing to pay, so another rack is always on.
+            onRematchAllowed = { true },
+            onExit = { go(Screen.Lobby) }
         )
     }
 }

@@ -73,15 +73,6 @@ class ProfileStore(context: Context) {
 
     // -------------------------------------------------------------------------- coins
 
-    /** Takes the entry fee for a match. Returns false when the player cannot cover it. */
-    fun payStake(amount: Int): Boolean {
-        if (amount <= 0) return true
-        val p = current
-        if (p.coins < amount) return false
-        update(p.copy(coins = p.coins - amount))
-        return true
-    }
-
     fun addCoins(amount: Int) {
         if (amount <= 0) return
         update(current.copy(coins = current.coins + amount))
@@ -117,16 +108,19 @@ class ProfileStore(context: Context) {
         return PlayerProfile.DAILY_BONUS
     }
 
-    /** Keeps a broke player in the game. */
-    fun bailoutIfBroke(minimumStake: Int): Boolean {
-        if (current.coins >= minimumStake) return false
-        update(current.copy(coins = current.coins + PlayerProfile.BAILOUT_COINS))
-        return true
+    /** Turns the game's sound on or off, and remembers the choice. */
+    fun setSoundEnabled(enabled: Boolean) {
+        if (current.soundEnabled == enabled) return
+        update(current.copy(soundEnabled = enabled))
     }
 
-    /** Prize for beating a robot on the given table at the given difficulty. */
-    fun prizeFor(table: PoolTableSkin, difficulty: RobotDifficulty): Int =
-        (table.basePrize * difficulty.rewardMultiplier).toInt()
+    /**
+     * Coins paid for beating [difficulty]: 25, 50 or 100.
+     *
+     * The reward comes from the robot, not from the table, so a player is never out of
+     * pocket for choosing a nicer table to play on.
+     */
+    fun prizeFor(difficulty: RobotDifficulty): Int = difficulty.reward
 
     fun resetProgress() {
         prefs.edit().clear().apply()
@@ -152,6 +146,7 @@ class ProfileStore(context: Context) {
             .putInt(KEY_BEST_STREAK, p.bestWinStreak)
             .putInt(KEY_STREAK, p.currentWinStreak)
             .putLong(KEY_BONUS_DAY, p.lastBonusDay)
+            .putBoolean(KEY_SOUND, p.soundEnabled)
             .apply()
     }
 
@@ -167,7 +162,8 @@ class ProfileStore(context: Context) {
             losses = prefs.getInt(KEY_LOSSES, 0),
             bestWinStreak = prefs.getInt(KEY_BEST_STREAK, 0),
             currentWinStreak = prefs.getInt(KEY_STREAK, 0),
-            lastBonusDay = prefs.getLong(KEY_BONUS_DAY, -1L)
+            lastBonusDay = prefs.getLong(KEY_BONUS_DAY, -1L),
+            soundEnabled = prefs.getBoolean(KEY_SOUND, true)
         )
     }
 
@@ -186,6 +182,7 @@ class ProfileStore(context: Context) {
         private const val KEY_BEST_STREAK = "best_streak"
         private const val KEY_STREAK = "streak"
         private const val KEY_BONUS_DAY = "bonus_day"
+        private const val KEY_SOUND = "sound_enabled"
 
         @Volatile
         private var instance: ProfileStore? = null

@@ -10,7 +10,7 @@ skill levels, and a coin economy with 12 cue sticks and 20 tables to unlock.
 
 | Option | What it does |
 | --- | --- |
-| **Play with Robot** | Pick Beginner, Medium or Hard, pay the table's entry fee and play for coins. |
+| **Play with Robot** | Pick Beginner, Medium or Hard. Free to play, and a win pays 25, 50 or 100 coins. |
 | **Play with Friend** | Two players on one device. No entry fee. |
 | **Choose Cue Stick** | 12 cues. The house cue is free, the rest start at **200 coins**. |
 | **Table Selection** | 20 tables. The local club is free, the rest start at **1,000 coins**. |
@@ -24,9 +24,9 @@ round robin the robots played against each other (`Harness` style run of the shi
 
 | Level | Pots per shot | Fouls | vs Beginner | vs Medium | How it thinks |
 | --- | --- | --- | --- | --- | --- |
-| **Beginner** | 0.27 | 21.9% | — | 1 / 12 | Picks a ball by eye, aims roughly, hits too hard, never plans the next shot. |
-| **Medium** | 0.47 | 8.9% | 8 / 12 | — | Picks the right ball, rehearses a handful of options, controls speed, plays safe when stuck. |
-| **Hard** | 0.67 | 3.7% | 12 / 12 | 10 / 12 | Champion level: rehearses every candidate shot in the physics engine, values where the cue ball finishes, hooks you with a safety when nothing is on, and banks off cushions to escape a snooker. |
+| **Beginner** | 0.27 | 21.9% | — | 1 / 12 | Picks a ball by eye, aims roughly, hits too hard, never plans the next shot. Pays **25** to beat. |
+| **Medium** | 0.47 | 8.9% | 8 / 12 | — | Picks the right ball, rehearses a handful of options, controls speed, plays safe when stuck. Pays **50**. |
+| **Hard** | 0.67 | 3.7% | 12 / 12 | 10 / 12 | Champion level: rehearses every candidate shot in the physics engine, values where the cue ball finishes, hooks you with a safety when nothing is on, and banks off cushions to escape a snooker. Pays **100**. |
 
 Difficulty is not a random number bolted onto a perfect aimer. Each level differs in aim
 error, speed control, how many candidate shots it rehearses, whether it weighs position,
@@ -37,11 +37,12 @@ whether it plays safeties and whether it uses spin — see `ai/RobotDifficulty.k
 Coins are in-game currency only. Nothing in this app costs real money and there is no
 payment code anywhere in it.
 
-* Every match against the robot charges the entry fee of the table you are on (50 coins on
-  the free table, up to 12,000 on the championship table).
-* The prize is the table's base prize multiplied by the difficulty: **x1.5** beginner,
-  **x2.5** medium, **x4** hard.
-* Daily bonus of 250 coins, an automatic top up if you go broke, and playing a friend is free.
+* **Every match is free to play**, against the robot and against a friend alike.
+* What a win pays depends only on the robot you beat: **25** for the beginner, **50** for
+  the medium, **100** for the hard one.
+* The table is never a cost of admission — it changes how the cloth runs and how the game
+  looks, nothing else.
+* Daily bonus of 50 coins, worth one win against the medium robot.
 
 ## Rules implemented
 
@@ -68,6 +69,23 @@ Standard 8 ball, including the parts most pool games skip:
 * Cushions cut away at the pocket mouths, with jaws that rattle a ball that does not drop.
 * A fixed internal timestep independent of the display's frame rate — so the shot the robot
   rehearsed is exactly the shot you watch.
+
+## Sound
+
+Every sound is synthesised at runtime too, so the APK still ships without a single asset.
+`audio/SoundSynth.kt` builds 16 bit PCM from scratch: a ball click is a pair of high
+partials decaying over about 30ms on top of a one millisecond noise transient, a cushion is
+the same idea an octave and a half down with the ring damped out, and the pocket is three
+rattles into a falling rumble.
+
+The physics reports every impact through `CollisionListener` as the shot plays out, so the
+volume and pitch of each click come from the real closing speed — a gentle kiss is quiet and
+a full blooded break is not. There is no canned break sample: the break is loud because the
+simulation really does drive a dozen collisions in a quarter of a second.
+
+The robot rehearses shots on a copy of the table, and that copy never carries the listener,
+so its thinking is silent. Sound can be muted from the lobby or from the table, and the
+choice is remembered.
 
 ## Rendering
 
@@ -99,8 +117,9 @@ app/src/main/java/com/mrpool/eightball/
 ├── MainActivity.kt          navigation, purchases, stakes and payouts
 ├── game/                    vectors, balls, table geometry, physics, 8 ball rules, controller
 ├── ai/                      aim solver, shot candidates, the three robots
+├── audio/                   procedural sound synthesis and playback
 ├── data/                    12 cues, 20 tables, profile and persistence
 ├── render/                  OpenGL ES 3.0 renderer, meshes, procedural textures
 └── ui/                      Compose lobby, shops, wallet, rules and the in game HUD
-app/src/test/                physics and rules unit tests
+app/src/test/                physics, rules and audio unit tests
 ```

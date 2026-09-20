@@ -101,17 +101,18 @@ fun WalletScreen(
                 }
 
                 SectionTitle("How you earn")
-                InfoRow("Beat the beginner robot", "x${RobotDifficulty.BEGINNER.rewardMultiplier} table prize")
-                InfoRow("Beat the medium robot", "x${RobotDifficulty.MEDIUM.rewardMultiplier} table prize")
-                InfoRow("Beat the hard robot", "x${RobotDifficulty.HARD.rewardMultiplier} table prize")
+                InfoRow("Beat the beginner robot", "+${RobotDifficulty.BEGINNER.reward}")
+                InfoRow("Beat the medium robot", "+${RobotDifficulty.MEDIUM.reward}")
+                InfoRow("Beat the hard robot", "+${RobotDifficulty.HARD.reward}")
                 InfoRow("Daily bonus", "+${PlayerProfile.DAILY_BONUS} once a day")
-                InfoRow("Run out of coins", "+${PlayerProfile.BAILOUT_COINS} top up, automatically")
 
                 SectionTitle("How you spend")
-                InfoRow("Match entry fee", "Set by the table you play on")
                 InfoRow("Cue sticks", "From 200 coins")
                 InfoRow("Tables", "From 1,000 coins")
-                InfoRow("Playing a friend", "Free")
+
+                SectionTitle("What is free")
+                InfoRow("Playing the robot", "No entry fee")
+                InfoRow("Playing a friend", "No entry fee")
 
                 Box(
                     modifier = Modifier
@@ -121,9 +122,9 @@ fun WalletScreen(
                         .padding(14.dp)
                 ) {
                     Text(
-                        "Your current table, ${profile.equippedTable.name}, charges " +
-                            "${profile.equippedTable.stake} coins per match and pays " +
-                            "${profile.equippedTable.basePrize} before the difficulty bonus.",
+                        "Every match is free to play. What you win depends only on which " +
+                            "robot you beat, so pick the toughest one you can handle — and " +
+                            "playing on ${profile.equippedTable.name} costs you nothing extra.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Chalk.copy(alpha = 0.75f)
                     )
