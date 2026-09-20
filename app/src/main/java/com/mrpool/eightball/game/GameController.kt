@@ -8,6 +8,8 @@ import com.mrpool.eightball.audio.Sound
 import com.mrpool.eightball.audio.SoundPlayer
 import com.mrpool.eightball.audio.SoundSynth
 import com.mrpool.eightball.data.PoolTableSkin
+import com.mrpool.eightball.net.OnlineMatch
+import com.mrpool.eightball.net.OnlineStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -34,6 +36,10 @@ data class GameUiState(
     val robotIntent: String = "",
     val ballInHand: Boolean = false,
     val shotInProgress: Boolean = false,
+    /** True when this device is waiting on the other player to shoot. */
+    val waitingForOpponent: Boolean = false,
+    /** Set when the opponent left, or while a desynced table is being repaired. */
+    val onlineNotice: String? = null,
     val tableOpen: Boolean = true,
     /** Mirrors of the aim controls, so Compose re-draws the power bar and spin pad. */
     val power: Float = 0.55f,
@@ -66,7 +72,9 @@ class GameController(
     private val scope: CoroutineScope,
     private val random: Random = Random.Default,
     /** Null runs the game silently, which is what the head-less tests do. */
-    private val audio: SoundPlayer? = null
+    private val audio: SoundPlayer? = null,
+    /** Set for an online match; the session then belongs to the network, not to us. */
+    private val online: OnlineMatch? = null
 ) {
 
     /** True when the second seat is played by a person on the same device. */
@@ -77,7 +85,9 @@ class GameController(
     private val playerOneName = playerName
     private val playerTwoName = opponentName
 
-    var session: GameSession = newSession()
+    val isOnline: Boolean = online != null
+
+    var session: GameSession = online?.session ?: newSession()
         private set
 
     private val _uiState = MutableStateFlow(GameUiState())
@@ -169,8 +179,14 @@ class GameController(
         random
     )
 
-    /** Starts a fresh rack with the same players. */
+    /**
+     * Starts a fresh rack with the same players.
+     *
+     * Does nothing online: a new rack there needs both players to agree to one, and one
+     * device quietly re-racking would leave the other playing a different game.
+     */
     fun rematch() {
+        if (isOnline) return
         session = newSession()
         session.physics.collisionListener = soundListener
         pendingShot = null
@@ -196,6 +212,8 @@ class GameController(
 
         if (pendingShot != null) {
             advanceStroke(step)
+        } else if (online != null) {
+            online.update(step)
         } else {
             session.update(step)
         }
@@ -236,12 +254,15 @@ class GameController(
             pendingShot = null
             strokeTimer = 0f
             cueHidden = true
-            session.shoot(
-                shot.direction,
-                (shot.power * cue.power).coerceIn(0f, 1f),
-                shot.sideSpin,
-                shot.topSpin
-            )
+            // The cue's power bonus is applied here, before the shot goes anywhere: online
+            // the two players may hold different cues, and a multiplier applied after this
+            // point would be applied on one device and not the other.
+            val speed = (shot.power * cue.power).coerceIn(0f, 1f)
+            if (online != null) {
+                online.submitShot(shot.direction.angle(), speed, shot.sideSpin, shot.topSpin)
+            } else {
+                session.shoot(shot.direction, speed, shot.sideSpin, shot.topSpin)
+            }
         }
     }
 
@@ -303,13 +324,14 @@ class GameController(
     /** Drags the cue ball while the player has ball in hand. */
     fun dragCueBall(position: Vec2) {
         if (session.phase != GamePhase.BALL_IN_HAND || session.isRobotTurn) return
+        if (online != null && !online.isLocalTurn) return
         ballInHandGhost = session.nearestValidCueBallPosition(position)
     }
 
     /** Drops the cue ball where it is being dragged. Returns true when it was placed. */
     fun dropCueBall(): Boolean {
         val ghost = ballInHandGhost ?: return false
-        val placed = session.placeCueBall(ghost)
+        val placed = if (online != null) online.submitPlacement(ghost) else session.placeCueBall(ghost)
         if (placed) {
             ballInHandGhost = null
             aimAtNearestTarget()
@@ -319,7 +341,8 @@ class GameController(
     }
 
     fun canPlayerAct(): Boolean =
-        session.canAim && !session.isRobotTurn && pendingShot == null && !session.isShooting
+        session.canAim && !session.isRobotTurn && pendingShot == null && !session.isShooting &&
+            (online == null || online.isLocalTurn)
 
     /** Points the cue at the easiest legal ball, so the player always starts somewhere sane. */
     fun aimAtNearestTarget() {
@@ -340,6 +363,7 @@ class GameController(
     private data class RobotDecision(val placement: Vec2?, val shot: PlannedShot?)
 
     private fun maybeStartRobotTurn() {
+        if (isOnline) return
         val bot = robot ?: return
         if (robotBusy || pendingShot != null) return
         if (session.phase == GamePhase.GAME_OVER || session.isShooting) return
@@ -425,7 +449,8 @@ class GameController(
             phase = session.phase,
             statusMessage = session.statusMessage,
             currentPlayerName = session.currentPlayer.name,
-            isHumanTurn = !session.isRobotTurn && session.phase != GamePhase.GAME_OVER,
+            isHumanTurn = !session.isRobotTurn && session.phase != GamePhase.GAME_OVER &&
+                (online == null || online.isLocalTurn),
             playerOneGroup = one.group,
             playerTwoGroup = two.group,
             playerOneRemaining = one.group?.let { session.ballsRemaining(it) } ?: 7,
@@ -436,11 +461,26 @@ class GameController(
             robotThinking = robotBusy && session.isRobotTurn,
             robotIntent = robotIntent,
             ballInHand = session.phase == GamePhase.BALL_IN_HAND,
+            waitingForOpponent = online != null &&
+                !online.isLocalTurn &&
+                session.phase != GamePhase.GAME_OVER &&
+                online.status == OnlineStatus.PLAYING,
+            onlineNotice = when (online?.status) {
+                OnlineStatus.OPPONENT_GONE -> "Your opponent left the match"
+                OnlineStatus.REPAIRING -> "Re-syncing with your opponent…"
+                else -> null
+            },
             shotInProgress = session.isShooting || pendingShot != null,
             tableOpen = session.tableOpen,
             power = power,
             spin = spin
         )
+    }
+
+    /** Leaves an online match, so the opponent is not left waiting on a still table. */
+    fun leaveOnlineMatch() {
+        online?.forfeit()
+        online?.close()
     }
 
     companion object {

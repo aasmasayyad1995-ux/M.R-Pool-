@@ -21,17 +21,28 @@ import com.mrpool.eightball.audio.GameAudio
 import com.mrpool.eightball.audio.Sound
 import com.mrpool.eightball.data.PlayerProfile
 import com.mrpool.eightball.data.ProfileStore
+import com.mrpool.eightball.game.ClothProperties
+import com.mrpool.eightball.game.GameSession
+import com.mrpool.eightball.game.PlayerState
+import com.mrpool.eightball.game.Seat
+import com.mrpool.eightball.net.MatchRoom
+import com.mrpool.eightball.net.Matchmaker
+import com.mrpool.eightball.net.Matchmaking
+import com.mrpool.eightball.net.OnlineAvailability
+import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.data.PurchaseResult
 import com.mrpool.eightball.ui.CueShopScreen
 import com.mrpool.eightball.ui.GameScreen
 import com.mrpool.eightball.ui.HowToPlayScreen
 import com.mrpool.eightball.ui.LobbyScreen
+import com.mrpool.eightball.ui.OnlineScreen
 import com.mrpool.eightball.ui.MrPoolTheme
 import com.mrpool.eightball.ui.RobotSetupScreen
 import com.mrpool.eightball.ui.SplashScreen
 import com.mrpool.eightball.ui.TableShopScreen
 import com.mrpool.eightball.ui.WalletScreen
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +68,12 @@ private sealed interface Screen {
     data object HowToPlay : Screen
     data object RobotSetup : Screen
     data class Match(val difficulty: RobotDifficulty?, val prize: Int) : Screen
+
+    /** The matchmaking screen. */
+    data object Online : Screen
+
+    /** A live online match against the player in [room]. */
+    data class OnlineMatchScreen(val room: MatchRoom) : Screen
 }
 
 /** Top level navigation, coin handling and shop purchases. */
@@ -75,8 +92,24 @@ private fun MrPoolApp() {
         audio.enabled = profile.soundEnabled
     }
 
+    var matchmaking by remember { mutableStateOf<Matchmaking>(Matchmaking.Idle) }
+    val matchmaker = remember(profile.playerName) {
+        OnlineAvailability.database(context)?.let {
+            Matchmaker(it, store.deviceId, profile.playerName)
+        }
+    }
+
     fun toast(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Matchmaking results all land here: on success, straight into the match. */
+    fun onMatchmaking(update: Matchmaking) {
+        matchmaking = update
+        if (update is Matchmaking.Ready) {
+            screen = Screen.OnlineMatchScreen(update.room)
+            matchmaking = Matchmaking.Idle
+        }
     }
 
     /** Every navigation tap clicks, so the menus feel connected to the table. */
@@ -104,6 +137,7 @@ private fun MrPoolApp() {
             profile = profile,
             onPlayRobot = { go(Screen.RobotSetup) },
             onPlayFriend = { go(Screen.Match(null, 0)) },
+            onPlayOnline = { go(Screen.Online) },
             onChooseCue = { go(Screen.Cues) },
             onChooseTable = { go(Screen.Tables) },
             onHowToPlay = { go(Screen.HowToPlay) },
@@ -172,6 +206,68 @@ private fun MrPoolApp() {
             },
             onBack = { go(Screen.Lobby) }
         )
+
+        Screen.Online -> OnlineScreen(
+            coins = profile.coins,
+            playerName = profile.playerName,
+            state = matchmaking,
+            configured = matchmaker != null,
+            setupHint = OnlineAvailability.SETUP_HINT,
+            onQuickMatch = { matchmaker?.quickMatch(::onMatchmaking) },
+            onHost = { matchmaker?.host(::onMatchmaking) },
+            onJoin = { code -> matchmaker?.join(code, ::onMatchmaking) },
+            onCancel = {
+                matchmaker?.cancel()
+                matchmaking = Matchmaking.Idle
+            },
+            onNameChange = { store.setPlayerName(it) },
+            onBack = { go(Screen.Lobby) }
+        )
+
+        is Screen.OnlineMatchScreen -> {
+            val room = current.room
+            // Both devices rack from the room's seed, so the two tables start identical.
+            val onlineMatch = remember(room.code) {
+                OnlineMatch(
+                    session = GameSession(
+                        PlayerState(
+                            if (room.seat == Seat.ONE) profile.playerName else room.opponentName,
+                            isRobot = false
+                        ),
+                        PlayerState(
+                            if (room.seat == Seat.ONE) room.opponentName else profile.playerName,
+                            isRobot = false
+                        ),
+                        ClothProperties.TOURNAMENT,
+                        Random(room.seed)
+                    ),
+                    localSeat = room.seat,
+                    isHost = room.isHost,
+                    transport = room.transport
+                )
+            }
+            GameScreen(
+                cue = profile.equippedCue,
+                table = profile.equippedTable,
+                difficulty = null,
+                prize = 0,
+                audio = audio,
+                online = onlineMatch,
+                soundEnabled = profile.soundEnabled,
+                onToggleSound = {
+                    val turningOn = !profile.soundEnabled
+                    store.setSoundEnabled(turningOn)
+                    audio.enabled = turningOn
+                },
+                onFinished = { },
+                onRematchAllowed = { false },
+                onExit = {
+                    onlineMatch.forfeit()
+                    onlineMatch.close()
+                    go(Screen.Lobby)
+                }
+            )
+        }
 
         Screen.HowToPlay -> HowToPlayScreen(
             coins = profile.coins,

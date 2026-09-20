@@ -6,6 +6,7 @@ import com.mrpool.eightball.ai.RobotDifficulty
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /** Outcome of a shop purchase, so the UI can explain what happened. */
@@ -108,6 +109,23 @@ class ProfileStore(context: Context) {
         return PlayerProfile.DAILY_BONUS
     }
 
+    /**
+     * A stable id for this installation, used to tell the two sides of an online match
+     * apart. Generated once and kept; it is not tied to the person, only to the install.
+     */
+    val deviceId: String by lazy {
+        prefs.getString(KEY_DEVICE_ID, null) ?: UUID.randomUUID().toString().also {
+            prefs.edit().putString(KEY_DEVICE_ID, it).apply()
+        }
+    }
+
+    /** The name the opponent sees online. */
+    fun setPlayerName(name: String) {
+        val trimmed = name.trim().take(16).ifBlank { "Player" }
+        if (current.playerName == trimmed) return
+        update(current.copy(playerName = trimmed))
+    }
+
     /** Turns the game's sound on or off, and remembers the choice. */
     fun setSoundEnabled(enabled: Boolean) {
         if (current.soundEnabled == enabled) return
@@ -147,6 +165,7 @@ class ProfileStore(context: Context) {
             .putInt(KEY_STREAK, p.currentWinStreak)
             .putLong(KEY_BONUS_DAY, p.lastBonusDay)
             .putBoolean(KEY_SOUND, p.soundEnabled)
+            .putString(KEY_NAME, p.playerName)
             .apply()
     }
 
@@ -163,7 +182,8 @@ class ProfileStore(context: Context) {
             bestWinStreak = prefs.getInt(KEY_BEST_STREAK, 0),
             currentWinStreak = prefs.getInt(KEY_STREAK, 0),
             lastBonusDay = prefs.getLong(KEY_BONUS_DAY, -1L),
-            soundEnabled = prefs.getBoolean(KEY_SOUND, true)
+            soundEnabled = prefs.getBoolean(KEY_SOUND, true),
+            playerName = prefs.getString(KEY_NAME, "Player") ?: "Player"
         )
     }
 
@@ -183,6 +203,8 @@ class ProfileStore(context: Context) {
         private const val KEY_STREAK = "streak"
         private const val KEY_BONUS_DAY = "bonus_day"
         private const val KEY_SOUND = "sound_enabled"
+        private const val KEY_NAME = "player_name"
+        private const val KEY_DEVICE_ID = "device_id"
 
         @Volatile
         private var instance: ProfileStore? = null

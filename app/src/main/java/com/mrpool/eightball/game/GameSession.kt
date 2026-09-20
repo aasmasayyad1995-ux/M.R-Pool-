@@ -357,6 +357,45 @@ class GameSession(
         )
     }
 
+    /** Captures everything another device would need to reproduce this table exactly. */
+    fun snapshot(): GameSnapshot = GameSnapshot(
+        balls = physics.balls.map {
+            BallSnapshot(it.number, it.position.x, it.position.y, it.pocketed)
+        },
+        currentSeat = currentSeat,
+        phase = phase,
+        tableOpen = tableOpen,
+        playerOneGroup = players[0].group,
+        playerTwoGroup = players[1].group,
+        winner = winner,
+        isBreakShot = isBreakShot
+    )
+
+    /**
+     * Adopts [snapshot] wholesale, discarding whatever this table currently believes.
+     *
+     * Used to repair a desync in an online match: the host's table is the authority, and a
+     * guest that has drifted takes this rather than carrying on with a different game.
+     */
+    fun restore(snapshot: GameSnapshot) {
+        for (ball in snapshot.balls) {
+            val target = physics.ball(ball.number) ?: continue
+            target.position = Vec2(ball.x, ball.y)
+            target.pocketed = ball.pocketed
+            target.stop()
+        }
+        physics.resetClock()
+        currentSeat = snapshot.currentSeat
+        phase = snapshot.phase
+        tableOpen = snapshot.tableOpen
+        players[0].group = snapshot.playerOneGroup
+        players[1].group = snapshot.playerTwoGroup
+        winner = snapshot.winner
+        isBreakShot = snapshot.isBreakShot
+        events = ShotEvents()
+        statusMessage = ""
+    }
+
     /**
      * Test seam: puts the match straight into a chosen mid game state instead of playing
      * the shots it would take to get there.

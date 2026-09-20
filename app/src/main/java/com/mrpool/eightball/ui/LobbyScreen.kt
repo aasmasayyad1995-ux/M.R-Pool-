@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.VolumeOff
@@ -45,6 +46,7 @@ fun LobbyScreen(
     profile: PlayerProfile,
     onPlayRobot: () -> Unit,
     onPlayFriend: () -> Unit,
+    onPlayOnline: () -> Unit,
     onChooseCue: () -> Unit,
     onChooseTable: () -> Unit,
     onHowToPlay: () -> Unit,
@@ -122,6 +124,15 @@ fun LobbyScreen(
                 modifier = Modifier.fillMaxWidth(),
                 badge = "WIN COINS",
                 onClick = onPlayRobot
+            )
+            MenuTile(
+                title = "Play Online",
+                subtitle = "Real opponents, quick match or a room code",
+                icon = Icons.Filled.Public,
+                accent = Color(0xFF6FA8FF),
+                modifier = Modifier.fillMaxWidth(),
+                badge = "NEW",
+                onClick = onPlayOnline
             )
             MenuTile(
                 title = "Play with Friend",

@@ -13,7 +13,9 @@ data class PlayerProfile(
     val currentWinStreak: Int = 0,
     /** Epoch day of the last claimed daily bonus, -1 when never claimed. */
     val lastBonusDay: Long = -1L,
-    val soundEnabled: Boolean = true
+    val soundEnabled: Boolean = true,
+    /** Shown to the other player in an online match. */
+    val playerName: String = "Player"
 ) {
     val equippedCue: CueStick get() = CueStick.byId(equippedCueId)
     val equippedTable: PoolTableSkin get() = PoolTableSkin.byId(equippedTableId)
