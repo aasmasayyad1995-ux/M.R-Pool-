@@ -25,10 +25,10 @@ import com.mrpool.eightball.game.ClothProperties
 import com.mrpool.eightball.game.GameSession
 import com.mrpool.eightball.game.PlayerState
 import com.mrpool.eightball.game.Seat
+import com.mrpool.eightball.net.MatchConnection
 import com.mrpool.eightball.net.MatchRoom
-import com.mrpool.eightball.net.Matchmaker
 import com.mrpool.eightball.net.Matchmaking
-import com.mrpool.eightball.net.OnlineAvailability
+import com.mrpool.eightball.net.OnlineConfig
 import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.data.PurchaseResult
 import com.mrpool.eightball.ui.CueShopScreen
@@ -93,10 +93,12 @@ private fun MrPoolApp() {
     }
 
     var matchmaking by remember { mutableStateOf<Matchmaking>(Matchmaking.Idle) }
-    val matchmaker = remember(profile.playerName) {
-        OnlineAvailability.database(context)?.let {
-            Matchmaker(it, store.deviceId, profile.playerName)
-        }
+
+    // One socket does the matchmaking and then becomes the match's transport, so there is a
+    // single thing to open, to watch and to close.
+    var connection by remember { mutableStateOf<MatchConnection?>(null) }
+    DisposableEffect(Unit) {
+        onDispose { connection?.close() }
     }
 
     fun toast(message: String) {
@@ -110,6 +112,17 @@ private fun MrPoolApp() {
             screen = Screen.OnlineMatchScreen(update.room)
             matchmaking = Matchmaking.Idle
         }
+    }
+
+    /** Opens the connection on demand, so a player who never goes online never dials out. */
+    fun online(): MatchConnection? {
+        if (!OnlineConfig.isConfigured) return null
+        val existing = connection
+        if (existing != null) return existing
+        val fresh = MatchConnection(OnlineConfig.serverUrl, profile.playerName, ::onMatchmaking)
+        connection = fresh
+        fresh.connect()
+        return fresh
     }
 
     /** Every navigation tap clicks, so the menus feel connected to the table. */
@@ -211,13 +224,13 @@ private fun MrPoolApp() {
             coins = profile.coins,
             playerName = profile.playerName,
             state = matchmaking,
-            configured = matchmaker != null,
-            setupHint = OnlineAvailability.SETUP_HINT,
-            onQuickMatch = { matchmaker?.quickMatch(::onMatchmaking) },
-            onHost = { matchmaker?.host(::onMatchmaking) },
-            onJoin = { code -> matchmaker?.join(code, ::onMatchmaking) },
+            configured = OnlineConfig.isConfigured,
+            setupHint = OnlineConfig.SETUP_HINT,
+            onQuickMatch = { online()?.quickMatch() },
+            onHost = { online()?.createRoom() },
+            onJoin = { code -> online()?.joinRoom(code) },
             onCancel = {
-                matchmaker?.cancel()
+                online()?.cancel()
                 matchmaking = Matchmaking.Idle
             },
             onNameChange = { store.setPlayerName(it) },
@@ -264,6 +277,7 @@ private fun MrPoolApp() {
                 onExit = {
                     onlineMatch.forfeit()
                     onlineMatch.close()
+                    connection = null
                     go(Screen.Lobby)
                 }
             )

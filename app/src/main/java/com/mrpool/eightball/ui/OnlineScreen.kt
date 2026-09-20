@@ -59,7 +59,9 @@ fun OnlineScreen(
     onBack: () -> Unit
 ) {
     var codeInput by remember { mutableStateOf("") }
-    val busy = state is Matchmaking.Hosting || state is Matchmaking.Searching
+    val busy = state is Matchmaking.Hosting ||
+        state is Matchmaking.Searching ||
+        state is Matchmaking.Connecting
 
     PoolBackground {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -104,6 +106,7 @@ fun OnlineScreen(
                 when (state) {
                     is Matchmaking.Hosting -> HostingCard(state.code, onCancel)
                     is Matchmaking.Searching -> Notice("Looking for an opponent…", Gold)
+                    is Matchmaking.Connecting -> Notice("Reaching the match server…", Cyan)
                     is Matchmaking.Failed -> Notice(state.reason, Crimson)
                     else -> Unit
                 }

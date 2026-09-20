@@ -7,6 +7,5 @@ build/
 captures/
 .externalNativeBuild/
 .cxx/
-
-# Firebase config: yours, not the repo's. See firebase/README.md.
-google-services.json
+server/build/
+server/.gradle/
