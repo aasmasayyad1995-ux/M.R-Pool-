@@ -28,6 +28,7 @@ import com.mrpool.eightball.ui.HowToPlayScreen
 import com.mrpool.eightball.ui.LobbyScreen
 import com.mrpool.eightball.ui.MrPoolTheme
 import com.mrpool.eightball.ui.RobotSetupScreen
+import com.mrpool.eightball.ui.SplashScreen
 import com.mrpool.eightball.ui.TableShopScreen
 import com.mrpool.eightball.ui.WalletScreen
 import java.util.concurrent.TimeUnit
@@ -47,6 +48,8 @@ class MainActivity : ComponentActivity() {
 
 /** Where the player currently is. */
 private sealed interface Screen {
+    /** The studio card, shown once when the app opens. */
+    data object Splash : Screen
     data object Lobby : Screen
     data object Cues : Screen
     data object Tables : Screen
@@ -62,7 +65,7 @@ private fun MrPoolApp() {
     val context = LocalContext.current
     val store = remember { ProfileStore.get(context) }
     val profile by store.profile.collectAsState()
-    var screen by remember { mutableStateOf<Screen>(Screen.Lobby) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Splash) }
 
     val audio = remember { GameAudio(context) }
     DisposableEffect(audio) {
@@ -88,11 +91,15 @@ private fun MrPoolApp() {
         screen = Screen.Match(difficulty, store.prizeFor(difficulty))
     }
 
-    BackHandler(enabled = screen != Screen.Lobby) {
+    // Back closes the app from the lobby and from the studio card; everywhere else it
+    // walks back to the lobby.
+    BackHandler(enabled = screen != Screen.Lobby && screen != Screen.Splash) {
         go(Screen.Lobby)
     }
 
     when (val current = screen) {
+        Screen.Splash -> SplashScreen(onFinished = { screen = Screen.Lobby })
+
         Screen.Lobby -> LobbyScreen(
             profile = profile,
             onPlayRobot = { go(Screen.RobotSetup) },

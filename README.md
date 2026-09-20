@@ -6,6 +6,13 @@ skill levels, and a coin economy with 12 cue sticks and 20 tables to unlock.
 
 > Are you ready to become Mr. Pool? 🏆
 
+## Opening
+
+The app opens on the Infinity Core studio card: the infinity mark draws itself as a single
+continuous stroke — a real lemniscate of Bernoulli, not a glyph, which is what lets one
+animated stroke travel the whole figure of eight — and the name fades up underneath it. A
+tap anywhere skips to the lobby.
+
 ## The lobby
 
 | Option | What it does |
