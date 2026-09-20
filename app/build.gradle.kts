@@ -22,9 +22,39 @@ android {
             "MATCH_SERVER_URL",
             "\"${project.findProperty("matchServerUrl") ?: ""}\""
         )
+
+        // Shown in the corner of the lobby. CI passes the commit it built, so a screenshot
+        // always says which build it came from — without that, a phone quietly running an
+        // older install looks exactly like a fix that did not work.
+        buildConfigField(
+            "String",
+            "BUILD_ID",
+            "\"${(project.findProperty("buildId") as String? ?: "local").take(7)}\""
+        )
+    }
+
+    // A debug key that is checked in and the same for everyone.
+    //
+    // Without this, Gradle invents a keystore wherever it happens to be building. Every CI
+    // run is a fresh machine, so every build was signed by a different key — and Android
+    // refuses to install an update signed by a different key than the app already on the
+    // phone. The download succeeds, the install does not, and the old build keeps running.
+    //
+    // This key is for debug builds only. It is published in this repository and its
+    // password is the Android default, so it must never be used to sign a real release.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

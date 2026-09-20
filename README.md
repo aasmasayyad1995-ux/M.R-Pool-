@@ -161,6 +161,14 @@ and no unzipping.
 Needs Android 7.0 or newer and a device with OpenGL ES 3.0, which is anything made in roughly
 the last decade.
 
+The lobby shows the build it came from in its bottom corner. If a fix appears not to have
+worked, check that number first: it is the difference between a fix that failed and a phone
+still running the build before it.
+
+Debug builds are signed with the key checked in at `keystore/debug.keystore`, so one build
+installs over another. It is a debug key with the standard Android password, published here
+on purpose — it must never be used to sign a real release.
+
 Online play is switched off in those builds — they are compiled without a match server URL —
 so the online screen explains what is missing and everything else plays normally.
 

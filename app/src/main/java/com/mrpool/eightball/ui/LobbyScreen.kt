@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mrpool.eightball.BuildConfig
 import com.mrpool.eightball.data.PlayerProfile
 
 /** The lobby: every mode and every shop hangs off this screen. */
@@ -187,6 +188,17 @@ fun LobbyScreen(
                 accent = Color(0xFF9C8CFF),
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onHowToPlay
+            )
+
+            // Which build this is. Small, but it turns "the fix did not work" into a
+            // question that answers itself from a screenshot.
+            Text(
+                "v${BuildConfig.VERSION_NAME} · build ${BuildConfig.BUILD_ID}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Chalk.copy(alpha = 0.3f),
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 14.dp, bottom = 6.dp)
             )
         }
     }
