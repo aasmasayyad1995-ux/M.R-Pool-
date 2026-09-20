@@ -40,6 +40,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.collectAsState
 import com.mrpool.eightball.ai.RobotDifficulty
+import com.mrpool.eightball.audio.SoundPlayer
 import com.mrpool.eightball.data.CueStick
 import com.mrpool.eightball.data.PoolTableSkin
 import com.mrpool.eightball.game.BallGroup
@@ -61,6 +62,9 @@ fun GameScreen(
     table: PoolTableSkin,
     difficulty: RobotDifficulty?,
     prize: Int,
+    audio: SoundPlayer?,
+    soundEnabled: Boolean,
+    onToggleSound: () -> Unit,
     onFinished: (won: Boolean) -> Unit,
     /** Pays the entry fee for another rack; false means the player cannot afford it. */
     onRematchAllowed: () -> Boolean,
@@ -74,7 +78,8 @@ fun GameScreen(
             difficulty = difficulty,
             playerName = "You",
             opponentName = difficulty?.let { "${it.label} Bot" } ?: "Friend",
-            scope = scope
+            scope = scope,
+            audio = audio
         )
     }
     val renderer = remember(controller) { PoolRenderer(controller, SceneStyle.from(table, cue)) }
@@ -118,6 +123,11 @@ fun GameScreen(
                     background = if (spinPadOpen) Gold.copy(alpha = 0.85f) else Color(0xAA141B1D),
                     contentColor = if (spinPadOpen) Ink else Chalk,
                     onClick = { spinPadOpen = !spinPadOpen }
+                )
+                RoundControl(
+                    label = if (soundEnabled) "🔊" else "🔇",
+                    contentColor = if (soundEnabled) Chalk else Chalk.copy(alpha = 0.4f),
+                    onClick = onToggleSound
                 )
             }
         }

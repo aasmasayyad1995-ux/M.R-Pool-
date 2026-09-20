@@ -69,6 +69,23 @@ Standard 8 ball, including the parts most pool games skip:
 * A fixed internal timestep independent of the display's frame rate — so the shot the robot
   rehearsed is exactly the shot you watch.
 
+## Sound
+
+Every sound is synthesised at runtime too, so the APK still ships without a single asset.
+`audio/SoundSynth.kt` builds 16 bit PCM from scratch: a ball click is a pair of high
+partials decaying over about 30ms on top of a one millisecond noise transient, a cushion is
+the same idea an octave and a half down with the ring damped out, and the pocket is three
+rattles into a falling rumble.
+
+The physics reports every impact through `CollisionListener` as the shot plays out, so the
+volume and pitch of each click come from the real closing speed — a gentle kiss is quiet and
+a full blooded break is not. There is no canned break sample: the break is loud because the
+simulation really does drive a dozen collisions in a quarter of a second.
+
+The robot rehearses shots on a copy of the table, and that copy never carries the listener,
+so its thinking is silent. Sound can be muted from the lobby or from the table, and the
+choice is remembered.
+
 ## Rendering
 
 `render/` draws everything procedurally: no image assets ship with the app. Ball numbers,
@@ -99,8 +116,9 @@ app/src/main/java/com/mrpool/eightball/
 ├── MainActivity.kt          navigation, purchases, stakes and payouts
 ├── game/                    vectors, balls, table geometry, physics, 8 ball rules, controller
 ├── ai/                      aim solver, shot candidates, the three robots
+├── audio/                   procedural sound synthesis and playback
 ├── data/                    12 cues, 20 tables, profile and persistence
 ├── render/                  OpenGL ES 3.0 renderer, meshes, procedural textures
 └── ui/                      Compose lobby, shops, wallet, rules and the in game HUD
-app/src/test/                physics and rules unit tests
+app/src/test/                physics, rules and audio unit tests
 ```

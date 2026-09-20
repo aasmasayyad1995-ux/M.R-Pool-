@@ -26,6 +26,12 @@ class PoolPhysics(
     /** Set to false for the robot's look ahead: orientation is only needed for rendering. */
     var trackOrientation: Boolean = true
 
+    /**
+     * Notified of every impact as a shot plays out. Only the live table has one: [copy]
+     * deliberately leaves it null so the robot's rehearsals make no noise.
+     */
+    var collisionListener: CollisionListener? = null
+
     private val radius = TableGeometry.BALL_RADIUS
 
     /** Left over frame time, so the fixed step never depends on the display refresh rate. */
@@ -37,7 +43,12 @@ class PoolPhysics(
 
     fun anyBallMoving(): Boolean = balls.any { it.isMoving }
 
-    /** Deep copy, so a candidate shot can be rehearsed without touching the live table. */
+    /**
+     * Deep copy, so a candidate shot can be rehearsed without touching the live table.
+     *
+     * The clone gets no [collisionListener]: a rehearsal that played sounds would fire
+     * thousands of them before the player had even taken the shot.
+     */
     fun copy(): PoolPhysics {
         val clone = PoolPhysics(balls.map { it.copyState() }.toMutableList(), cloth)
         clone.trackOrientation = false
@@ -62,6 +73,7 @@ class PoolPhysics(
         cue.wx = rollAxis.x * spinRate
         cue.wy = rollAxis.y * spinRate
         cue.wz = -sideSpin * speed / radius * 0.55f
+        collisionListener?.onCueStrike(speed)
     }
 
     /**
@@ -223,6 +235,12 @@ class PoolPhysics(
                     events.contactHappened = true
                 }
 
+                collisionListener?.onBallCollision(
+                    approach,
+                    a.position + normal * radius,
+                    a.isCue || b.isCue
+                )
+
                 // Equal masses: exchange the normal component.
                 val impulse = (1f + cloth.ballRestitution) * approach * 0.5f
                 a.velocity = a.velocity - normal * impulse
@@ -294,6 +312,7 @@ class PoolPhysics(
         b.position = contactPoint
         val vn = b.velocity.dot(normal)
         if (vn >= 0f) return
+        collisionListener?.onCushionCollision(-vn, contactPoint)
         val tangent = normal.perpendicular()
         var vt = b.velocity.dot(tangent)
 
@@ -337,6 +356,7 @@ class PoolPhysics(
             if (b.pocketed) continue
             for (pocket in TableGeometry.pockets) {
                 if (b.position.distanceTo(pocket.center) < pocket.radius) {
+                    collisionListener?.onPocketed(b.number, b.velocity.length())
                     b.pocketed = true
                     b.stop()
                     b.position = pocket.center

@@ -124,6 +124,12 @@ class ProfileStore(context: Context) {
         return true
     }
 
+    /** Turns the game's sound on or off, and remembers the choice. */
+    fun setSoundEnabled(enabled: Boolean) {
+        if (current.soundEnabled == enabled) return
+        update(current.copy(soundEnabled = enabled))
+    }
+
     /** Prize for beating a robot on the given table at the given difficulty. */
     fun prizeFor(table: PoolTableSkin, difficulty: RobotDifficulty): Int =
         (table.basePrize * difficulty.rewardMultiplier).toInt()
@@ -152,6 +158,7 @@ class ProfileStore(context: Context) {
             .putInt(KEY_BEST_STREAK, p.bestWinStreak)
             .putInt(KEY_STREAK, p.currentWinStreak)
             .putLong(KEY_BONUS_DAY, p.lastBonusDay)
+            .putBoolean(KEY_SOUND, p.soundEnabled)
             .apply()
     }
 
@@ -167,7 +174,8 @@ class ProfileStore(context: Context) {
             losses = prefs.getInt(KEY_LOSSES, 0),
             bestWinStreak = prefs.getInt(KEY_BEST_STREAK, 0),
             currentWinStreak = prefs.getInt(KEY_STREAK, 0),
-            lastBonusDay = prefs.getLong(KEY_BONUS_DAY, -1L)
+            lastBonusDay = prefs.getLong(KEY_BONUS_DAY, -1L),
+            soundEnabled = prefs.getBoolean(KEY_SOUND, true)
         )
     }
 
@@ -186,6 +194,7 @@ class ProfileStore(context: Context) {
         private const val KEY_BEST_STREAK = "best_streak"
         private const val KEY_STREAK = "streak"
         private const val KEY_BONUS_DAY = "bonus_day"
+        private const val KEY_SOUND = "sound_enabled"
 
         @Volatile
         private var instance: ProfileStore? = null

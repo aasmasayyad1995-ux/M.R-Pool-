@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,7 +22,10 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,7 +48,8 @@ fun LobbyScreen(
     onChooseCue: () -> Unit,
     onChooseTable: () -> Unit,
     onHowToPlay: () -> Unit,
-    onWallet: () -> Unit
+    onWallet: () -> Unit,
+    onToggleSound: () -> Unit
 ) {
     PoolBackground {
         Column(
@@ -80,7 +85,25 @@ fun LobbyScreen(
                         color = Chalk.copy(alpha = 0.6f)
                     )
                 }
-                CoinPill(profile.coins, onClick = onWallet)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(InkSoft)
+                        .clickable { onToggleSound() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (profile.soundEnabled) Icons.Filled.VolumeUp
+                        else Icons.Filled.VolumeOff,
+                        contentDescription = if (profile.soundEnabled) "Turn sound off"
+                        else "Turn sound on",
+                        tint = if (profile.soundEnabled) Gold else Chalk.copy(alpha = 0.4f)
+                    )
+                }
+                Box(modifier = Modifier.padding(start = 8.dp)) {
+                    CoinPill(profile.coins, onClick = onWallet)
+                }
             }
 
             StatsStrip(profile)
