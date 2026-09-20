@@ -247,10 +247,17 @@ class PoolRenderer(
         val rail = style.railColor
         val trim = style.trimColor
 
-        // Bed.
+        // Bed. Run the cloth out under the cushions and up to the rails, the way it is
+        // really fitted: stopping it exactly at the playing edge leaves the ambiguous seam
+        // between it and whatever is drawn beneath, which shows as a ragged border.
         identity(model)
         translate(model, 0f, 0f, 0f)
-        scale(model, TableGeometry.HALF_LENGTH, 1f, TableGeometry.HALF_WIDTH)
+        scale(
+            model,
+            TableGeometry.HALF_LENGTH + CUSHION_DEPTH * 2f,
+            1f,
+            TableGeometry.HALF_WIDTH + CUSHION_DEPTH * 2f
+        )
         draw(shader, quad, model, felt, 1f, feltTexture, unlit = false, shininess = 6f, specular = 0.03f)
 
         // Apron under the bed so the table reads as a solid object from a low camera.
