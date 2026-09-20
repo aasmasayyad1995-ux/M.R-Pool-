@@ -59,7 +59,7 @@ private val LESSONS = listOf(
     ),
     Lesson(
         "Aiming",
-        "Drag anywhere on the table to swing the cue. The dashed white line shows where the cue " +
+        "Drag anywhere away from the cue ball to swing the cue around. The dashed white line shows where the cue " +
             "ball travels, the ghost ball shows the contact point, the yellow line shows where the " +
             "object ball will go and the blue line shows where your cue ball goes afterwards.",
         listOf(
@@ -68,9 +68,17 @@ private val LESSONS = listOf(
         )
     ),
     Lesson(
-        "Power",
-        "Drag the power bar up for a harder hit. Most pots need far less power than players use; " +
-            "a soft shot keeps the cue ball under control and stops it running into trouble."
+        "Power: draw the cue back and let go",
+        "Put a finger on the cue ball and drag backwards, the way you would draw a real cue " +
+            "back. The further you pull, the harder the shot. Let go and it fires.",
+        listOf(
+            "Only the distance straight back counts, so sliding sideways will not add power.",
+            "Let go without pulling and nothing happens — a mis-grab costs you nothing.",
+            "The power bar down the side does the same job, and the SHOOT button fires it, " +
+                "if you would rather set the power and tap.",
+            "Most pots need far less power than players use. A soft shot keeps the cue ball " +
+                "under control and stops it running into trouble."
+        )
     ),
     Lesson(
         "Spin: follow, draw and english",

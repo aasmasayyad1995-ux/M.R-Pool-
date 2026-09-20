@@ -148,8 +148,11 @@ stripes, cloth weave and wood grain are painted at runtime with `Canvas` and upl
 textures, so any table colour in the shop can be rendered. Spheres, boxes, discs and the
 tapered cue are generated as meshes, lit with a Blinn-Phong shader.
 
-Controls: drag with one finger to aim, drag with two to orbit, pinch to zoom, drag the power
-bar for speed, and open the spin pad to move the tip off centre.
+Controls: put a finger on the cue ball and **draw it back** to load the shot, then let go to
+play it — only the distance straight back counts, and letting go without pulling costs you
+nothing. Drag anywhere else on the table to swing the aim, two fingers to orbit, pinch to
+zoom. The power bar and SHOOT button still work for anyone who prefers to set and tap, and
+the spin pad moves the tip off centre.
 
 ## Installing it on a phone
 

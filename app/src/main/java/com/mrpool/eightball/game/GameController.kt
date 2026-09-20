@@ -36,6 +36,8 @@ data class GameUiState(
     val robotIntent: String = "",
     val ballInHand: Boolean = false,
     val shotInProgress: Boolean = false,
+    /** True while the player has the cue drawn back and has not let go. */
+    val pullingBack: Boolean = false,
     /** True when this device is waiting on the other player to shoot. */
     val waitingForOpponent: Boolean = false,
     /** Set when the opponent left, or while a desynced table is being repaired. */
@@ -108,6 +110,14 @@ class GameController(
     /** Where the cue ball is being dragged to during ball in hand, if anywhere. */
     var ballInHandGhost: Vec2? = null
         private set
+
+    /**
+     * Where the finger went down to start drawing the cue back, or null when no pull is in
+     * progress. The distance from here, measured back along the aim line, is the power.
+     */
+    private var pullAnchor: Vec2? = null
+
+    val isPullingBack: Boolean get() = pullAnchor != null
 
     /** How far the cue is drawn back from the ball, in metres, for the renderer. */
     var cuePullback: Float = 0.05f
@@ -275,6 +285,8 @@ class GameController(
 
     fun setAimAngle(radians: Float) {
         if (!canPlayerAct()) return
+        // The shot is already wound up; swinging the aim now would send it somewhere else.
+        if (isPullingBack) return
         aimAngle = normalizeAngle(radians)
         cueHidden = false
         cuePullback = restingPullback(power)
@@ -291,9 +303,69 @@ class GameController(
         setAimAngle(dir.angle())
     }
 
+    // ------------------------------------------------------------------ pull and release
+
+    /**
+     * Starts drawing the cue back, the way a player would take a practice stroke.
+     *
+     * Only grabs when the finger goes down near the cue ball, so a touch anywhere else on
+     * the table still swings the aim around instead.
+     *
+     * @return true when the cue was grabbed and the drag belongs to the pull
+     */
+    fun beginPull(point: Vec2): Boolean {
+        if (!canPlayerAct()) return false
+        val cueBall = session.physics.cueBall ?: return false
+        if (cueBall.pocketed) return false
+        if (point.distanceTo(cueBall.position) > GRAB_RADIUS) return false
+        pullAnchor = point
+        setPowerInternal(0f)
+        return true
+    }
+
+    /**
+     * Draws the cue back to wherever the finger is now.
+     *
+     * Only the distance straight back along the aim line counts: sliding sideways slides
+     * along the cue rather than winding it up, which is what the hand expects.
+     */
+    fun updatePull(point: Vec2) {
+        val anchor = pullAnchor ?: return
+        val back = (anchor - point).dot(Vec2.fromAngle(aimAngle))
+        setPowerInternal((back / MAX_PULL_DISTANCE).coerceIn(0f, 1f))
+    }
+
+    /**
+     * Lets go. Fires the shot if the cue was drawn back far enough to mean it, and simply
+     * puts the cue down again if it was not, so a mis-grab is not a wasted shot.
+     *
+     * @return true when the shot was taken
+     */
+    fun releasePull(): Boolean {
+        pullAnchor ?: return false
+        pullAnchor = null
+        if (power < MINIMUM_SHOT_POWER) {
+            setPowerInternal(RESTING_POWER)
+            return false
+        }
+        shoot()
+        return true
+    }
+
+    /** Abandons a pull without shooting. */
+    fun cancelPull() {
+        if (pullAnchor == null) return
+        pullAnchor = null
+        setPowerInternal(RESTING_POWER)
+    }
+
     fun setPower(value: Float) {
         if (!canPlayerAct()) return
-        power = value.coerceIn(0.05f, 1f)
+        setPowerInternal(value)
+    }
+
+    private fun setPowerInternal(value: Float) {
+        power = value.coerceIn(0f, 1f)
         cuePullback = restingPullback(power)
         publish()
     }
@@ -464,6 +536,7 @@ class GameController(
             robotThinking = robotBusy && session.isRobotTurn,
             robotIntent = robotIntent,
             ballInHand = session.phase == GamePhase.BALL_IN_HAND,
+            pullingBack = isPullingBack,
             waitingForOpponent = online != null &&
                 !online.isLocalTurn &&
                 session.phase != GamePhase.GAME_OVER &&
@@ -487,6 +560,18 @@ class GameController(
     }
 
     companion object {
+        /** How close to the cue ball a finger must land to take hold of the cue. */
+        const val GRAB_RADIUS = 0.22f
+
+        /** How far back the cue is drawn for a full power shot, in metres. */
+        const val MAX_PULL_DISTANCE = 0.42f
+
+        /** Below this, letting go puts the cue down again instead of playing the shot. */
+        const val MINIMUM_SHOT_POWER = 0.06f
+
+        /** Where the power sits when nothing is being drawn back. */
+        const val RESTING_POWER = 0.5f
+
         /** Below this closing speed a contact is a kiss rather than a click. */
         private const val SOFT_CONTACT_SPEED = 1.15f
         private const val STROKE_SECONDS = 0.16f

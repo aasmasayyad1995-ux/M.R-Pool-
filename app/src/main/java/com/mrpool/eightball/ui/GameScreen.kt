@@ -89,6 +89,8 @@ fun GameScreen(
     val state by controller.uiState.collectAsState()
 
     var spinPadOpen by remember { mutableStateOf(false) }
+    var hasPulled by remember { mutableStateOf(false) }
+    if (state.pullingBack) hasPulled = true
 
     DisposableEffect(controller) {
         controller.onMatchFinished = { won ->
@@ -218,6 +220,26 @@ fun GameScreen(
             }
         }
 
+        // Only until they have done it once — the control is not obvious until it is.
+        if (state.isHumanTurn && !state.shotInProgress && !state.ballInHand &&
+            !state.pullingBack && !hasPulled
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 18.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0x990D1315))
+                    .padding(horizontal = 16.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    "Pull the cue ball back and let go to shoot",
+                    color = Chalk.copy(alpha = 0.65f),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+
         if (state.robotThinking) {
             Box(
                 modifier = Modifier
@@ -283,7 +305,9 @@ private fun TableSurface(renderer: PoolRenderer, controller: GameController) {
             .pointerInput(renderer, controller) {
                 awaitEachGesture {
                     val first = awaitFirstDown(requireUnconsumed = false)
-                    handleTouch(renderer, controller, first.position)
+                    // What the first finger lands on decides what the whole drag does:
+                    // on the cue ball it takes hold of the cue, anywhere else it aims.
+                    var gesture = startGesture(renderer, controller, first.position)
                     var previousCentroid: Offset? = null
                     var previousSpread = 0f
 
@@ -295,8 +319,14 @@ private fun TableSurface(renderer: PoolRenderer, controller: GameController) {
                         if (active.size == 1) {
                             previousCentroid = null
                             previousSpread = 0f
-                            handleTouch(renderer, controller, active[0].position)
+                            continueGesture(renderer, controller, gesture, active[0].position)
                         } else {
+                            // A second finger means the camera, so any pull is abandoned
+                            // rather than fired off by accident.
+                            if (gesture == TableGesture.PULL) {
+                                controller.cancelPull()
+                                gesture = TableGesture.CAMERA
+                            }
                             var sumX = 0f
                             var sumY = 0f
                             active.forEach { sumX += it.position.x; sumY += it.position.y }
@@ -324,20 +354,51 @@ private fun TableSurface(renderer: PoolRenderer, controller: GameController) {
                         }
                         active.forEach { it.consume() }
                     }
-                    controller.dropCueBall()
+
+                    // Letting go is what plays the shot.
+                    when (gesture) {
+                        TableGesture.PULL -> controller.releasePull()
+                        TableGesture.PLACE_BALL -> controller.dropCueBall()
+                        else -> Unit
+                    }
                 }
             }
     )
 }
 
-/** Routes a touch to aiming or to placing the cue ball. */
-private fun handleTouch(renderer: PoolRenderer, controller: GameController, position: Offset) {
-    val point = renderer.unproject(position.x, position.y) ?: return
+/** What a drag on the table is doing. */
+private enum class TableGesture { AIM, PULL, PLACE_BALL, CAMERA }
+
+/** Decides what this drag is, from wherever the first finger landed. */
+private fun startGesture(
+    renderer: PoolRenderer,
+    controller: GameController,
+    position: Offset
+): TableGesture {
+    val point = renderer.unproject(position.x, position.y) ?: return TableGesture.AIM
     val state = controller.uiState.value
     if (state.ballInHand && state.isHumanTurn) {
         controller.dragCueBall(point)
-    } else if (controller.canPlayerAct()) {
-        controller.aimAt(point)
+        return TableGesture.PLACE_BALL
+    }
+    if (controller.beginPull(point)) return TableGesture.PULL
+    if (controller.canPlayerAct()) controller.aimAt(point)
+    return TableGesture.AIM
+}
+
+/** Carries on whatever the drag started out as. */
+private fun continueGesture(
+    renderer: PoolRenderer,
+    controller: GameController,
+    gesture: TableGesture,
+    position: Offset
+) {
+    val point = renderer.unproject(position.x, position.y) ?: return
+    when (gesture) {
+        TableGesture.PULL -> controller.updatePull(point)
+        TableGesture.PLACE_BALL -> controller.dragCueBall(point)
+        TableGesture.AIM -> if (controller.canPlayerAct()) controller.aimAt(point)
+        TableGesture.CAMERA -> Unit
     }
 }
 
