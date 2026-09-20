@@ -3,12 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Applied only when a Firebase config has actually been added, so the project still builds
-// and the game still plays without one. Online play is the only feature that needs it.
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
-
 android {
     namespace = "com.mrpool.eightball"
     compileSdk = 34
@@ -20,6 +14,14 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Where the match server lives. Run server/ locally or deploy it, then point this
+        // at it. An empty value simply disables online play; see README "Online play".
+        buildConfigField(
+            "String",
+            "MATCH_SERVER_URL",
+            "\"${project.findProperty("matchServerUrl") ?: ""}\""
+        )
     }
 
     buildTypes {
@@ -43,6 +45,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -60,9 +63,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    // Online play. The rest of the game never touches these.
-    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
-    implementation("com.google.firebase:firebase-database-ktx")
+    // Online play. The rest of the game never touches this.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))

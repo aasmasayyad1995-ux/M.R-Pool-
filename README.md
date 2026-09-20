@@ -101,8 +101,28 @@ Getting in: **Quick Match** takes whoever is waiting in the queue, or **Create a
 you a five character code to read out. The alphabet leaves out the characters that sound
 alike over a phone: no O or 0, no I, L or 1, no S or 5.
 
-Online play needs a Firebase project — see [firebase/README.md](firebase/README.md). Without
-one the rest of the game is unaffected and the online screen says what is missing.
+### The server
+
+`server/` is a small Ktor WebSocket service that does two things: it pairs players, and it
+forwards messages between the two in a room. It never simulates anything and it never reads
+a move — a move's contents ride through as an opaque blob — so the rules of pool live in one
+place, the app, and the server never needs redeploying when they change.
+
+```bash
+cd server
+./gradlew run                 # listens on $PORT, or 8080
+./gradlew test                # 16 tests, including two clients over real WebSockets
+```
+
+Deploy it anywhere that takes a Dockerfile — Render, Railway and Fly all have a free tier
+that fits. Then build the app pointing at it:
+
+```bash
+./gradlew assembleDebug -PmatchServerUrl=wss://your-server.example.com/ws
+```
+
+Leave that property out and online play is simply switched off; the rest of the game is
+unaffected and the online screen says what is missing.
 
 ## Sound
 
@@ -152,9 +172,10 @@ app/src/main/java/com/mrpool/eightball/
 ├── game/                    vectors, balls, table geometry, physics, 8 ball rules, controller
 ├── ai/                      aim solver, shot candidates, the three robots
 ├── audio/                   procedural sound synthesis and playback
-├── net/                     lockstep online play, matchmaking, Firebase transport
+├── net/                     lockstep online play, matchmaking, the WebSocket client
+server/                      the Ktor match server: pairing and relay, nothing else
 ├── data/                    12 cues, 20 tables, profile and persistence
 ├── render/                  OpenGL ES 3.0 renderer, meshes, procedural textures
 └── ui/                      Compose lobby, shops, wallet, rules and the in game HUD
-app/src/test/                physics, rules and audio unit tests
+app/src/test/                physics, rules, audio, netcode and protocol unit tests
 ```
