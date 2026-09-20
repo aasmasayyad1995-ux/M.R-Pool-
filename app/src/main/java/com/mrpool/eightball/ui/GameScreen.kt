@@ -167,26 +167,20 @@ fun GameScreen(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            PowerBar(
+            // A meter, not a control: the shot is played by drawing the cue back on the
+            // table, so this shows what the finger is holding rather than setting it.
+            PowerMeter(
                 power = state.power,
-                enabled = state.isHumanTurn && !state.shotInProgress && !state.ballInHand,
-                onPowerChange = { controller.setPower(it) }
+                live = state.pullingBack
             )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (state.ballInHand && state.isHumanTurn) {
-                    Button(
-                        onClick = { controller.dropCueBall() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Cyan),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.padding(bottom = 10.dp)
-                    ) {
-                        Text("Place ball", color = Ink, fontWeight = FontWeight.Bold)
-                    }
+            if (state.ballInHand && state.isHumanTurn) {
+                Button(
+                    onClick = { controller.dropCueBall() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Place ball", color = Ink, fontWeight = FontWeight.Bold)
                 }
-                ShootButton(
-                    enabled = state.isHumanTurn && !state.shotInProgress && !state.ballInHand,
-                    onShoot = { controller.shoot() }
-                )
             }
         }
 

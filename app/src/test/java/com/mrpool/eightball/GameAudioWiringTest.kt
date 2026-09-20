@@ -5,6 +5,7 @@ import com.mrpool.eightball.audio.SoundPlayer
 import com.mrpool.eightball.data.CueStick
 import com.mrpool.eightball.data.PoolTableSkin
 import com.mrpool.eightball.game.GameController
+import com.mrpool.eightball.game.Vec2
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -40,6 +41,16 @@ class GameAudioWiringTest {
             audio = player
         )
 
+    /** Plays a full power shot the way a player does: draw the cue back, and let go. */
+    private fun breakOff(controller: GameController) {
+        val cueBall = controller.session.physics.cueBall!!.position
+        assertTrue("could not take hold of the cue", controller.beginPull(cueBall))
+        controller.updatePull(
+            cueBall - Vec2.fromAngle(controller.aimAngle) * GameController.MAX_PULL_DISTANCE
+        )
+        assertTrue("letting go did not play the shot", controller.releasePull())
+    }
+
     /** Runs frames until the table is at rest again, or the budget runs out. */
     private fun settle(controller: GameController, seconds: Float = 30f) {
         var elapsed = 0f
@@ -55,7 +66,7 @@ class GameAudioWiringTest {
         val player = RecordingPlayer()
         val controller = controller(player, difficulty = null)
 
-        controller.shoot()
+        breakOff(controller)
         settle(controller)
 
         assertEquals("the cue should be struck exactly once", 1, player.countOf(Sound.CUE_STRIKE))
@@ -72,8 +83,7 @@ class GameAudioWiringTest {
         val player = RecordingPlayer()
         val controller = controller(player, difficulty = null)
 
-        controller.setPower(1f)
-        controller.shoot()
+        breakOff(controller)
         settle(controller)
         val loudBreak = player.played
             .filter { it.first == Sound.BALL_CLICK }
@@ -89,14 +99,14 @@ class GameAudioWiringTest {
         val player = RecordingPlayer()
         val controller = controller(player, difficulty = null)
 
-        controller.shoot()
+        breakOff(controller)
         settle(controller)
         assertTrue("the first rack made no sound", player.played.isNotEmpty())
 
         controller.rematch()
         player.played.clear()
 
-        controller.shoot()
+        breakOff(controller)
         settle(controller)
 
         assertEquals("the rematch lost the cue strike", 1, player.countOf(Sound.CUE_STRIKE))
@@ -118,7 +128,7 @@ class GameAudioWiringTest {
         )
         // Simply must not throw: a null player is the silent path the tests and the
         // muted game both take.
-        controller.shoot()
+        breakOff(controller)
         settle(controller)
         assertTrue(controller.session.physics.balls.isNotEmpty())
     }

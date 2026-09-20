@@ -32,36 +32,29 @@ import com.mrpool.eightball.game.Vec2
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/** Vertical power bar: drag it up for a harder hit. */
+/**
+ * How hard the shot is wound up, as the cue is drawn back.
+ *
+ * Read only on purpose. The shot is played by drawing the cue back on the table and letting
+ * go, so a second way to set the power would only be a way to disagree with the first.
+ */
 @Composable
-fun PowerBar(
+fun PowerMeter(
     power: Float,
-    enabled: Boolean,
-    onPowerChange: (Float) -> Unit,
+    live: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val height = 190.dp
-    val density = LocalDensity.current
     Box(
         modifier = modifier
-            .width(40.dp)
-            .height(height)
+            .width(34.dp)
+            .height(190.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Color(0x99101617))
-            .border(1.dp, Chalk.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
-            .pointerInput(enabled) {
-                if (!enabled) return@pointerInput
-                val pixels = with(density) { height.toPx() }
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        onPowerChange(1f - (offset.y / pixels).coerceIn(0f, 1f))
-                    },
-                    onDrag = { change, _ ->
-                        onPowerChange(1f - (change.position.y / pixels).coerceIn(0f, 1f))
-                        change.consume()
-                    }
-                )
-            },
+            .border(
+                1.dp,
+                if (live) Gold else Chalk.copy(alpha = 0.18f),
+                RoundedCornerShape(20.dp)
+            ),
         contentAlignment = Alignment.BottomCenter
     ) {
         Box(
@@ -77,7 +70,7 @@ fun PowerBar(
         )
         Text(
             "${(power * 100).roundToInt()}",
-            color = Chalk,
+            color = if (live) Chalk else Chalk.copy(alpha = 0.55f),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 6.dp)
@@ -171,31 +164,6 @@ fun RoundControl(
         contentAlignment = Alignment.Center
     ) {
         Text(label, color = contentColor, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-/** The big shoot button. */
-@Composable
-fun ShootButton(enabled: Boolean, onShoot: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(84.dp)
-            .clip(CircleShape)
-            .background(
-                if (enabled) Brush.linearGradient(listOf(Gold, Color(0xFFCF9A16)))
-                else Brush.linearGradient(listOf(Color(0xFF2A3033), Color(0xFF20262A)))
-            )
-            .border(2.dp, if (enabled) Gold else Chalk.copy(alpha = 0.15f), CircleShape)
-            .pointerInput(enabled) {
-                detectTapGestures(onTap = { if (enabled) onShoot() })
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            "SHOOT",
-            color = if (enabled) Ink else Chalk.copy(alpha = 0.35f),
-            style = MaterialTheme.typography.labelLarge
-        )
     }
 }
 

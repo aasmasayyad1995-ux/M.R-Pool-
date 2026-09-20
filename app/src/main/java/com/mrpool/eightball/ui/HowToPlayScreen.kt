@@ -74,8 +74,8 @@ private val LESSONS = listOf(
         listOf(
             "Only the distance straight back counts, so sliding sideways will not add power.",
             "Let go without pulling and nothing happens — a mis-grab costs you nothing.",
-            "The power bar down the side does the same job, and the SHOOT button fires it, " +
-                "if you would rather set the power and tap.",
+            "The meter down the side fills as you pull, so you can see what you are about " +
+                "to hit it with.",
             "Most pots need far less power than players use. A soft shot keeps the cue ball " +
                 "under control and stops it running into trouble."
         )

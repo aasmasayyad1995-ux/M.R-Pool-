@@ -100,7 +100,7 @@ class GameController(
         private set
 
     /** 0..1 power the player has dialled in. */
-    var power: Float = 0.55f
+    var power: Float = RESTING_POWER
         private set
 
     /** Side spin (-1..1) and follow / draw (-1..1). */
@@ -207,7 +207,7 @@ class GameController(
         wasShooting = false
         cueHidden = false
         ballInHandGhost = null
-        power = 0.55f
+        power = RESTING_POWER
         spin = Vec2.ZERO
         aimAtNearestTarget()
         publish()
@@ -359,11 +359,6 @@ class GameController(
         setPowerInternal(RESTING_POWER)
     }
 
-    fun setPower(value: Float) {
-        if (!canPlayerAct()) return
-        setPowerInternal(value)
-    }
-
     private fun setPowerInternal(value: Float) {
         power = value.coerceIn(0f, 1f)
         cuePullback = restingPullback(power)
@@ -388,8 +383,14 @@ class GameController(
         spin = Vec2.ZERO
     }
 
-    /** Fires the shot the player has lined up. */
-    fun shoot() {
+    /**
+     * Fires the shot the cue is currently wound up for.
+     *
+     * Private: the only way to play a shot is to draw the cue back and let go, and a second
+     * entry point that skipped the draw could fire at whatever power happened to be left
+     * over.
+     */
+    private fun shoot() {
         if (!canPlayerAct()) return
         pendingShot = PlannedShot(Vec2.fromAngle(aimAngle), power, spin.x, spin.y)
         strokeTimer = 0f
@@ -569,8 +570,13 @@ class GameController(
         /** Below this, letting go puts the cue down again instead of playing the shot. */
         const val MINIMUM_SHOT_POWER = 0.06f
 
-        /** Where the power sits when nothing is being drawn back. */
-        const val RESTING_POWER = 0.5f
+        /**
+         * Where the power sits when nothing is being drawn back.
+         *
+         * Zero: the cue rests against the ball and the meter is empty until the player
+         * draws it back, which is the only thing that loads a shot now.
+         */
+        const val RESTING_POWER = 0f
 
         /** Below this closing speed a contact is a kiss rather than a click. */
         private const val SOFT_CONTACT_SPEED = 1.15f
