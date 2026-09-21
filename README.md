@@ -222,7 +222,9 @@ as you pull, and the spin pad moves the tip off centre.
 ## Installing it on a phone
 
 Every push to `main` publishes the APK to the
-[latest release](../../releases/latest/download/app-debug.apk). Open that link on an Android
+[latest release](../../releases/latest/download/app-debug.apk). That build has online play
+switched on, pointed at the deployed match server; the subscription stays switched off, so
+nothing published here can charge anyone. Open that link on an Android
 phone, tap the downloaded file, and allow installation from unknown sources. No GitHub login
 and no unzipping.
 
