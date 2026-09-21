@@ -47,6 +47,7 @@ import com.mrpool.eightball.game.BallGroup
 import com.mrpool.eightball.game.GameController
 import com.mrpool.eightball.game.GamePhase
 import com.mrpool.eightball.game.GameUiState
+import com.mrpool.eightball.game.Seat
 import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.render.PoolRenderer
 import com.mrpool.eightball.render.PoolSurfaceView
@@ -63,6 +64,9 @@ fun GameScreen(
     table: PoolTableSkin,
     difficulty: RobotDifficulty?,
     prize: Int,
+    /** The two players by name, in seat order. Shown on the scoreboard as given. */
+    playerName: String,
+    opponentName: String,
     audio: SoundPlayer?,
     online: OnlineMatch? = null,
     soundEnabled: Boolean,
@@ -78,8 +82,8 @@ fun GameScreen(
             cue = cue,
             table = table,
             difficulty = difficulty,
-            playerName = "You",
-            opponentName = difficulty?.let { "${it.label} Bot" } ?: "Friend",
+            playerName = playerName,
+            opponentName = opponentName,
             scope = scope,
             audio = audio,
             online = online
@@ -105,7 +109,6 @@ fun GameScreen(
         MatchHud(
             state = state,
             table = table,
-            difficulty = difficulty,
             onExit = onExit
         )
 
@@ -397,11 +400,14 @@ private fun continueGesture(
 }
 
 /** Score line, turn indicator and the balls each player still owes. */
+/** A name for the scoreboard, marked when it is the player holding this phone. */
+private fun plateName(name: String, isLocal: Boolean): String =
+    if (isLocal) "$name (you)" else name
+
 @Composable
 private fun MatchHud(
     state: GameUiState,
     table: PoolTableSkin,
-    difficulty: RobotDifficulty?,
     onExit: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
@@ -410,11 +416,14 @@ private fun MatchHud(
             verticalAlignment = Alignment.CenterVertically
         ) {
             RoundControl("✕", diameter = 36.dp, onClick = onExit)
+            // Left is always seat one and right always seat two, for both devices, so
+            // the two scoreboards agree. Which of them is you is said by name, and marked
+            // online where the player who joined is seat two and could not otherwise tell.
             PlayerPlate(
-                name = "You",
+                name = plateName(state.playerOneName, state.localSeat == Seat.ONE),
                 group = state.playerOneGroup,
                 remaining = state.playerOneRemaining,
-                active = state.isHumanTurn,
+                active = state.currentSeat == Seat.ONE && state.phase != GamePhase.GAME_OVER,
                 modifier = Modifier.padding(start = 10.dp)
             )
             Column(
@@ -433,10 +442,10 @@ private fun MatchHud(
                 )
             }
             PlayerPlate(
-                name = difficulty?.let { "${it.label} Bot" } ?: "Friend",
+                name = plateName(state.playerTwoName, state.localSeat == Seat.TWO),
                 group = state.playerTwoGroup,
                 remaining = state.playerTwoRemaining,
-                active = !state.isHumanTurn && state.phase != GamePhase.GAME_OVER,
+                active = state.currentSeat == Seat.TWO && state.phase != GamePhase.GAME_OVER,
                 modifier = Modifier.padding(end = 4.dp)
             )
         }

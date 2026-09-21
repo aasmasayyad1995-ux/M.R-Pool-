@@ -25,6 +25,19 @@ data class GameUiState(
     val statusMessage: String = "",
     val currentPlayerName: String = "",
     val isHumanTurn: Boolean = true,
+    /** The two players by name, in seat order, as the scoreboard shows them. */
+    val playerOneName: String = "",
+    val playerTwoName: String = "",
+    /** Whose turn it is. The scoreboard highlights by seat, not by who is local. */
+    val currentSeat: Seat = Seat.ONE,
+    /**
+     * Which seat this device is playing, online only.
+     *
+     * Null for a robot or same-device match, where there is nothing to tell apart: the
+     * point of it is that the player who joined a room is seat two, and without this the
+     * scoreboard cannot say which side of it is theirs.
+     */
+    val localSeat: Seat? = null,
     val playerOneGroup: BallGroup? = null,
     val playerTwoGroup: BallGroup? = null,
     val playerOneRemaining: Int = 7,
@@ -538,6 +551,10 @@ class GameController(
             phase = session.phase,
             statusMessage = session.statusMessage,
             currentPlayerName = session.currentPlayer.name,
+            playerOneName = one.name,
+            playerTwoName = two.name,
+            currentSeat = session.currentSeat,
+            localSeat = online?.localSeat,
             isHumanTurn = !session.isRobotTurn && session.phase != GamePhase.GAME_OVER &&
                 (online == null || online.isLocalTurn),
             playerOneGroup = one.group,

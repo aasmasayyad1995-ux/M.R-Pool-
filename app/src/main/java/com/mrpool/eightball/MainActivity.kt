@@ -267,6 +267,9 @@ private fun MrPoolApp() {
                 table = profile.equippedTable,
                 difficulty = null,
                 prize = 0,
+                // Seat order, so both devices label the scoreboard the same way round.
+                playerName = if (room.seat == Seat.ONE) profile.playerName else room.opponentName,
+                opponentName = if (room.seat == Seat.ONE) room.opponentName else profile.playerName,
                 audio = audio,
                 online = onlineMatch,
                 soundEnabled = profile.soundEnabled,
@@ -298,6 +301,8 @@ private fun MrPoolApp() {
             table = profile.equippedTable,
             difficulty = current.difficulty,
             prize = current.prize,
+            playerName = profile.playerName,
+            opponentName = current.difficulty?.let { "${it.label} Bot" } ?: "Friend",
             audio = audio,
             soundEnabled = profile.soundEnabled,
             onToggleSound = { store.toggleSound() },
