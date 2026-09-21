@@ -60,9 +60,10 @@ jobs:
           Download **app-debug.apk** below, tap it on an Android phone and allow
           installation from unknown sources. Needs Android 7.0 or newer and OpenGL ES 3.0.
 
-          Online play is switched off in this build: it is compiled without a match server
-          URL, so the online screen explains what is missing and everything else plays
-          normally."
+          Online play and the Mr. Pool Pro subscription are both switched off in this
+          build: it is compiled without a match server or billing URL, so those screens
+          explain what is missing and everything else plays normally. Nothing in this
+          build can charge you."
           if gh release view latest >/dev/null 2>&1; then
             gh release upload latest "$APK" --clobber
             gh release edit latest --notes "$NOTES"

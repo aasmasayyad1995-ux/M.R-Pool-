@@ -1,5 +1,7 @@
 package com.mrpool.server
 
+import com.mrpool.server.billing.Billing
+import com.mrpool.server.billing.billingRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
@@ -44,7 +46,7 @@ private class SocketPeer(
     }
 }
 
-fun Application.matchServer(hub: Hub = Hub()) {
+fun Application.matchServer(hub: Hub = Hub(), billing: Billing = Billing()) {
     install(ServerWebSockets) {
         // Keeps the connection alive through the idle timeouts that free hosting tiers and
         // mobile networks both impose. A player lining up a shot sends nothing for a while.
@@ -58,6 +60,10 @@ fun Application.matchServer(hub: Hub = Hub()) {
         get("/") {
             call.respondText("Mr. Pool match server. ${hub.openRooms} rooms open.")
         }
+
+        // Subscriptions. Inert unless the Razorpay keys are in the environment, so a
+        // server deployed only to relay matches carries these routes and sells nothing.
+        billingRoutes(billing)
 
         // Free hosting tiers ping this to decide whether the service is alive.
         get("/health") {

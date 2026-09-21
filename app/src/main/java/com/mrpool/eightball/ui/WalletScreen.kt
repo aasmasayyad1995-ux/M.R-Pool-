@@ -31,7 +31,8 @@ import com.mrpool.eightball.data.PlayerProfile
 /**
  * The money screen: balance, the daily bonus, and exactly what every match pays.
  *
- * Coins are in-game currency only — there is no real money anywhere in this app.
+ * Coins are in-game currency. They are won, never bought: the subscription unlocks cues,
+ * tables and bigger payouts, and there is no way to turn coins back into money.
  */
 @Composable
 fun WalletScreen(
@@ -44,7 +45,7 @@ fun WalletScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = "Coins & Rewards",
-                subtitle = "In-game currency — nothing here costs real money",
+                subtitle = "Won by playing — coins are never bought or cashed out",
                 coins = profile.coins,
                 onBack = onBack
             )
@@ -92,7 +93,7 @@ fun WalletScreen(
                     )
                 ) {
                     Text(
-                        if (bonusAvailable) "Claim daily bonus +${PlayerProfile.DAILY_BONUS}"
+                        if (bonusAvailable) "Claim daily bonus +${profile.dailyBonus}"
                         else "Daily bonus claimed — come back tomorrow",
                         color = if (bonusAvailable) Ink else Chalk.copy(alpha = 0.6f),
                         fontWeight = FontWeight.Bold,
@@ -101,10 +102,13 @@ fun WalletScreen(
                 }
 
                 SectionTitle("How you earn")
-                InfoRow("Beat the beginner robot", "+${RobotDifficulty.BEGINNER.reward}")
-                InfoRow("Beat the medium robot", "+${RobotDifficulty.MEDIUM.reward}")
-                InfoRow("Beat the hard robot", "+${RobotDifficulty.HARD.reward}")
-                InfoRow("Daily bonus", "+${PlayerProfile.DAILY_BONUS} once a day")
+                InfoRow("Beat the beginner robot", "+${profile.prizeFor(RobotDifficulty.BEGINNER)}")
+                InfoRow("Beat the medium robot", "+${profile.prizeFor(RobotDifficulty.MEDIUM)}")
+                InfoRow("Beat the hard robot", "+${profile.prizeFor(RobotDifficulty.HARD)}")
+                InfoRow("Daily bonus", "+${profile.dailyBonus} once a day")
+                if (profile.pro) {
+                    InfoRow("Mr. Pool Pro", "doubling every prize above")
+                }
 
                 SectionTitle("How you spend")
                 InfoRow("Cue sticks", "From 200 coins")

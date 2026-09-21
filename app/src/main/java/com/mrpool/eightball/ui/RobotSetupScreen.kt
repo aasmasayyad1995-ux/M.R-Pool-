@@ -44,7 +44,7 @@ fun RobotSetupScreen(
 ) {
     var selected by remember { mutableStateOf(RobotDifficulty.MEDIUM) }
     val table = profile.equippedTable
-    val prize = selected.reward
+    val prize = profile.prizeFor(selected)
 
     PoolBackground {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -65,7 +65,7 @@ fun RobotSetupScreen(
                     DifficultyCard(
                         difficulty = difficulty,
                         selected = difficulty == selected,
-                        prize = difficulty.reward,
+                        prize = profile.prizeFor(difficulty),
                         onSelect = { selected = difficulty }
                     )
                 }
