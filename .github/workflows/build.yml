@@ -33,8 +33,20 @@ jobs:
         run: ./gradlew testDebugUnitTest --stacktrace
 
       # The commit goes into the APK, so the lobby can say which build it is.
+      #
+      # matchServerUrl points the app at the deployed match server, which is what makes
+      # "Play Online" work in the published build. It is a public address, not a secret.
+      #
+      # billingServerUrl is deliberately absent, so subscriptions stay switched off in
+      # every published APK. Turning them on means a server with a persistent disk and
+      # the UPI settings, and that is a decision to take deliberately — see
+      # server/README.md. Until then nothing this workflow publishes can charge anyone.
       - name: Build the APK
-        run: ./gradlew assembleDebug -PbuildId=${{ github.sha }} --stacktrace
+        run: |
+          ./gradlew assembleDebug \
+            -PbuildId=${{ github.sha }} \
+            -PmatchServerUrl=wss://mrpool-server.onrender.com/ws \
+            --stacktrace
 
       - name: Attach the APK to this run
         uses: actions/upload-artifact@v4
@@ -60,10 +72,13 @@ jobs:
           Download **app-debug.apk** below, tap it on an Android phone and allow
           installation from unknown sources. Needs Android 7.0 or newer and OpenGL ES 3.0.
 
-          Online play and the Mr. Pool Pro subscription are both switched off in this
-          build: it is compiled without a match server or billing URL, so those screens
-          explain what is missing and everything else plays normally. Nothing in this
-          build can charge you."
+          Online play is switched on and points at the deployed match server. It runs
+          on a free instance that sleeps when nobody is using it, so the first connect
+          after a quiet spell can take up to a minute to wake it.
+
+          The Mr. Pool Pro subscription is switched off in this build: it is compiled
+          without a billing URL, so that screen says it is unavailable and everything
+          else plays normally. Nothing in this build can charge you."
           if gh release view latest >/dev/null 2>&1; then
             gh release upload latest "$APK" --clobber
             gh release edit latest --notes "$NOTES"
