@@ -172,9 +172,11 @@ cd server
 
 Deploy it anywhere that takes a Dockerfile. `render.yaml` and `server/fly.toml` are
 checked in, so on either host it is a form to fill rather than a file to write — see
-[`server/README.md`](server/README.md) for the click-by-click. If you are taking
-subscriptions the service needs a disk mounted at `/data`; online play alone does not,
-because it keeps nothing. Then build the app pointing at it:
+[`server/README.md`](server/README.md) for the click-by-click. The blueprint is the free
+setup with subscriptions switched off, which needs no card and no disk: online play keeps
+no state, so a free tier genuinely suits it. Subscriptions are the part that needs a disk,
+and turning them on is a deliberate step for the day somebody actually pays. Then build
+the app pointing at it:
 
 ```bash
 ./gradlew assembleDebug \

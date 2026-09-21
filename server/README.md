@@ -38,29 +38,57 @@ Whatever you pick:
 
 - The host gives the process a `PORT`; the server reads it.
 - Health check path: `/health`.
-- **If you are taking subscriptions, the service needs a disk mounted at `/data`.** Free
-  tiers give you a container with no persistent storage, so `entitlements.jsonl` is wiped
-  on every deploy and every subscriber loses the month they paid for. Online play alone
-  does not need one — it keeps nothing.
+- **Online play needs nothing but the container.** It keeps no state, so a free tier is
+  genuinely fine for it.
+- **Subscriptions need a disk mounted at `/data`.** Free tiers give you a container with
+  no persistent storage, so `entitlements.jsonl` is wiped on every deploy and every
+  subscriber loses the month they paid for. The checked-in blueprint therefore starts
+  free with subscriptions off, and adding the disk is a deliberate step you take on the
+  day somebody pays.
 
 Free tiers also idle a service out after a period of no traffic. The first player to
 connect after that waits a few seconds while it wakes up.
 
 ### Render, step by step
 
+The blueprint is the **free** setup, and it leaves subscriptions switched off. That is
+deliberate: a free Render instance has no persistent disk, so a subscriber who paid would
+silently lose the month they paid for. With no UPI id and no admin token set, the server
+sells nothing and there is nothing to lose. Online play works perfectly on it.
+
 1. Sign up at [render.com](https://render.com) and connect this GitHub repository.
 2. **New → Blueprint**, pick the repo. Leave **Blueprint Path** empty — `render.yaml`
-   sits at the repo root, which is where Render looks by default. It then offers a
-   service called `mrpool-server`.
-3. It will ask for three values. These never enter the repository:
-   - `UPI_ID` — your UPI id, where the money lands, e.g. `yourname@okhdfcbank`
-   - `SUBSCRIPTION_PRICE` — a plain number, e.g. `99`
-   - `ADMIN_TOKEN` — a long random password. Generate one: `openssl rand -hex 24`
-4. Apply. First build takes a few minutes; Gradle is compiling Kotlin inside the image.
-5. Check it: open `https://your-service.onrender.com/health`. It should say `ok`.
+   sits at the repo root, which is where Render looks by default.
+3. Name it `mrpool-server`, branch `main`, and apply. First build takes a few minutes;
+   Gradle is compiling Kotlin inside the image. No card needed.
+4. Check it: open `https://your-service.onrender.com/health`. It should say `ok`.
 
-`render.yaml` (at the repo root) asks for the `starter` plan because that is the cheapest one that can have a
-disk. Drop it to `free` and delete the `disk:` block only while nobody is paying.
+A free instance idles out after a while with no traffic, so the first player to connect
+after a quiet spell waits a few seconds while it wakes up.
+
+### Turning subscriptions on, the day somebody actually pays
+
+Do all four of these, not some of them:
+
+1. In the Render dashboard, change the instance type from **Free** to **Starter** — the
+   cheapest one that can have a disk.
+2. Add a disk: mount path `/data`, 1 GB.
+3. Add four environment variables:
+
+   ```
+   SUBSCRIPTION_STORE = /data/entitlements.jsonl
+   UPI_ID             = yourname@okhdfcbank
+   SUBSCRIPTION_PRICE = 99
+   ADMIN_TOKEN        = <openssl rand -hex 24>
+   ```
+
+4. Run the curl walkthrough below, ending with the redeploy check. If the test player
+   stops being subscribed after a redeploy, the disk is not doing its job, and that must
+   be fixed before a real rupee arrives.
+
+Until step 3, `/billing/plan` reports `"configured": false` and the app's Pro screen says
+subscriptions are unavailable. Nobody can be charged. That is the correct resting state,
+not a fault.
 
 ### Fly.io, step by step
 
