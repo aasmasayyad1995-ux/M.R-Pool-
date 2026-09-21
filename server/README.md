@@ -70,6 +70,11 @@ after a quiet spell waits a few seconds while it wakes up.
 
 Do all four of these, not some of them:
 
+The server refuses to sell until it has **both** a UPI id and somewhere on disk to
+remember who paid — a blank `SUBSCRIPTION_STORE` switches subscriptions off no matter what
+else is set. Taking money and forgetting who paid is worse than not taking it, since the
+money has already left their account, so that combination is not reachable by accident.
+
 1. In the Render dashboard, change the instance type from **Free** to **Starter** — the
    cheapest one that can have a disk.
 2. Add a disk: mount path `/data`, 1 GB.
@@ -86,9 +91,13 @@ Do all four of these, not some of them:
    stops being subscribed after a redeploy, the disk is not doing its job, and that must
    be fixed before a real rupee arrives.
 
-Until step 3, `/billing/plan` reports `"configured": false` and the app's Pro screen says
-subscriptions are unavailable. Nobody can be charged. That is the correct resting state,
-not a fault.
+Until all four are set, `/billing/plan` reports `"configured": false` and the app's Pro
+screen says subscriptions are unavailable. Nobody can be charged. That is the correct
+resting state, not a fault.
+
+The published APK already points at this server for billing, so nothing needs rebuilding
+or reinstalling: the moment the server is ready, Pro starts working on phones that already
+have the app.
 
 ### Fly.io, step by step
 
@@ -244,7 +253,7 @@ Every one of these is explained in [`.env.example`](.env.example), and
 | `SUBSCRIPTION_PRICE` | Rupees per month, a plain number. |
 | `SUBSCRIPTION_DAYS` | How many days one payment buys. Default 30. |
 | `ADMIN_TOKEN` | The password for the approvals page. |
-| `SUBSCRIPTION_STORE` | Where subscribers are remembered. Must be on a mounted disk. |
+| `SUBSCRIPTION_STORE` | Where subscribers are remembered. Must be on a mounted disk. Blank switches subscriptions off. |
 
 `ADMIN_TOKEN` is the one to be careful with. **Leave it blank and subscriptions switch off
 entirely** rather than leaving that page open to anyone who finds the URL — a test

@@ -9,7 +9,10 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import java.io.File
+import java.nio.file.Files
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -24,6 +27,16 @@ import kotlin.test.assertTrue
 class BillingRoutesTest {
 
     private val token = "admin-password-long-enough"
+    private val temporaryFiles = mutableListOf<File>()
+
+    @AfterTest
+    fun cleanUp() = temporaryFiles.forEach { it.delete() }
+
+    /** A real path, because a server with nowhere to remember subscribers refuses to sell. */
+    private fun storePath(): String =
+        Files.createTempFile("routes-entitlements", ".jsonl").toFile()
+            .also { it.delete(); temporaryFiles.add(it) }
+            .absolutePath
 
     private fun billing(): Billing = Billing(
         config = BillingConfig(
@@ -32,7 +45,7 @@ class BillingRoutesTest {
             amount = "99",
             adminToken = token,
             days = 30,
-            storePath = ""
+            storePath = storePath()
         ),
         entitlements = Entitlements(),
         clock = { 1_700_000_000_000L },

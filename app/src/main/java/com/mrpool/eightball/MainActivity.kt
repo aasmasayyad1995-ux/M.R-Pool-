@@ -106,6 +106,9 @@ private fun MrPoolApp() {
     DisposableEffect(audio) {
         onDispose { audio.release() }
     }
+    // The one place audio.enabled is written. Every toggle goes through the store, the
+    // store publishes, and this follows — so the speaker icon and the actual sound can
+    // never disagree about whether the game is muted.
     LaunchedEffect(profile.soundEnabled) {
         audio.enabled = profile.soundEnabled
     }
@@ -223,10 +226,9 @@ private fun MrPoolApp() {
             onWallet = { go(Screen.Wallet) },
             onSubscription = { go(Screen.Subscription) },
             onToggleSound = {
-                val turningOn = !profile.soundEnabled
-                store.setSoundEnabled(turningOn)
-                audio.enabled = turningOn
-                if (turningOn) audio.play(Sound.TAP, 0.6f)
+                // The store flips its own value and audio follows profile.soundEnabled,
+                // so there is one writer and nothing to get out of step with.
+                if (store.toggleSound()) audio.play(Sound.TAP, 0.6f)
             }
         )
 
@@ -407,11 +409,7 @@ private fun MrPoolApp() {
                 audio = audio,
                 online = onlineMatch,
                 soundEnabled = profile.soundEnabled,
-                onToggleSound = {
-                    val turningOn = !profile.soundEnabled
-                    store.setSoundEnabled(turningOn)
-                    audio.enabled = turningOn
-                },
+                onToggleSound = { store.toggleSound() },
                 onFinished = { },
                 onRematchAllowed = { false },
                 onExit = {
@@ -441,11 +439,7 @@ private fun MrPoolApp() {
             prize = current.prize,
             audio = audio,
             soundEnabled = profile.soundEnabled,
-            onToggleSound = {
-                val turningOn = !profile.soundEnabled
-                store.setSoundEnabled(turningOn)
-                audio.enabled = turningOn
-            },
+            onToggleSound = { store.toggleSound() },
             onFinished = { won ->
                 if (current.difficulty != null) {
                     val payout = store.settleMatch(won, current.prize)

@@ -32,8 +32,22 @@ data class BillingConfig(
     /** Where paid players are remembered. Must outlive the container. */
     val storePath: String = System.getenv("SUBSCRIPTION_STORE").orEmpty()
 ) {
+    /**
+     * Whether this server may sell subscriptions at all.
+     *
+     * [storePath] is in here deliberately. Without it entitlements live in memory only,
+     * and every redeploy or container recycle silently erases everyone who has paid —
+     * which is worse than not selling at all, because the money has already left their
+     * account. A server with no disk configured therefore refuses to take money rather
+     * than taking it and forgetting.
+     *
+     * [adminToken] is in here for the same reason from the other direction: with no
+     * password the approvals page is open to anyone who finds the URL, and a subscription
+     * is one click away for a stranger.
+     */
     val isConfigured: Boolean
-        get() = upiId.isNotBlank() && amount.isNotBlank() && adminToken.isNotBlank()
+        get() = upiId.isNotBlank() && amount.isNotBlank() &&
+            adminToken.isNotBlank() && storePath.isNotBlank()
 
     fun storeFile(): File? = storePath.takeIf { it.isNotBlank() }?.let(::File)
 

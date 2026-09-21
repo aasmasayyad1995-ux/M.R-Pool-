@@ -37,13 +37,13 @@ class BillingTest {
         Files.createTempFile("entitlements", ".jsonl").toFile()
             .also { it.delete(); temporaryFiles.add(it) }
 
-    private fun config() = BillingConfig(
+    private fun config(storePath: String = "/tmp/never-written.jsonl") = BillingConfig(
         upiId = "asad@okhdfcbank",
         payeeName = "Mr. Pool",
         amount = "99",
         adminToken = token,
         days = 30,
-        storePath = ""
+        storePath = storePath
     )
 
     private var now = 1_700_000_000_000L
@@ -70,9 +70,25 @@ class BillingTest {
     }
 
     @Test
+    fun `a server with nowhere to remember subscribers refuses to sell`() {
+        val noDisk = Billing(
+            config = BillingConfig(
+                upiId = "a@b", amount = "99", adminToken = "long-enough-token", storePath = ""
+            )
+        )
+        assertFalse(
+            noDisk.isConfigured,
+            "taking money and forgetting who paid is worse than not taking it"
+        )
+        assertNull(noDisk.paymentInstructions("p1", "1.2.3.4"))
+    }
+
+    @Test
     fun `an admin page with no password set is switched off, not left open`() {
         val noToken = Billing(
-            config = BillingConfig(upiId = "a@b", amount = "99", adminToken = "")
+            config = BillingConfig(
+                upiId = "a@b", amount = "99", adminToken = "", storePath = "/tmp/x.jsonl"
+            )
         )
         assertFalse(
             noToken.isConfigured,

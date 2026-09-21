@@ -76,6 +76,16 @@ data class PlayerProfile(
     fun prizeFor(difficulty: com.mrpool.eightball.ai.RobotDifficulty): Int =
         difficulty.reward * if (pro) PRO_PRIZE_MULTIPLIER else 1
 
+    /**
+     * This profile with the sound flipped.
+     *
+     * A flip rather than a set, because the caller does not have to be holding a current
+     * profile to get it right. Working out the new value from a snapshot means a stale
+     * one computes the value it already has, and a store that ignores no-op writes then
+     * does nothing at all — which is a mute that cannot be undone.
+     */
+    fun withSoundToggled(): PlayerProfile = copy(soundEnabled = !soundEnabled)
+
     /** The name the opponent sees, with the subscriber's star on it. */
     val displayName: String get() = if (pro) "$playerName ★" else playerName
 

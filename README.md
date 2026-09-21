@@ -101,10 +101,14 @@ Other deliberate limits:
 * **The approvals page is switched off without a password.** A blank `ADMIN_TOKEN`
   disables subscriptions entirely rather than leaving that page open to anyone who finds
   the URL.
+* **A server with nowhere to remember subscribers refuses to sell.** A blank
+  `SUBSCRIPTION_STORE` disables subscriptions too, because taking somebody's money and
+  then forgetting they paid is worse than not taking it.
 
-Both halves are off in the published APK: it is built without a server URL, so the Pro
-screen explains what is missing and the game plays free. Setting it up — and what is still
-missing before this should carry real money — is in
+The published APK points at the deployed server for both, but the server refuses to sell
+subscriptions until it has a UPI id and a disk to remember subscribers on — so online play
+works and the Pro screen says subscriptions are unavailable. Turning them on, and what is
+still missing before this should carry real money, is in
 [`server/README.md`](server/README.md).
 
 ## Rules implemented

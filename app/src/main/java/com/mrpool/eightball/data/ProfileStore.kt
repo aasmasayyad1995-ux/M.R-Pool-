@@ -140,6 +140,25 @@ class ProfileStore(
     }
 
     /**
+     * Flips the sound and returns what it now is.
+     *
+     * The screens use this rather than working out the new value themselves. A tap handler
+     * holds whatever profile its last composition captured, and during a match that can
+     * be a frame or two behind; asking it for the opposite of a stale value can produce
+     * the value already stored, which [setSoundEnabled] then discards as a no-op. The
+     * sound stays off, the button still reads muted, and every further tap repeats the
+     * same arithmetic — a mute with no way back.
+     *
+     * Reading and writing here, under the store's own lock, cannot be stale.
+     */
+    @Synchronized
+    fun toggleSound(): Boolean {
+        val flipped = current.withSoundToggled()
+        update(flipped)
+        return flipped.soundEnabled
+    }
+
+    /**
      * Coins paid for beating [difficulty]: 25, 50 or 100, doubled for a subscriber.
      *
      * The reward comes from the robot, not from the table, so a player is never out of
