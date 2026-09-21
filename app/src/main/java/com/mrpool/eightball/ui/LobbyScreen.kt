@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +53,7 @@ fun LobbyScreen(
     onChooseTable: () -> Unit,
     onHowToPlay: () -> Unit,
     onWallet: () -> Unit,
+    onSubscription: () -> Unit,
     onToggleSound: () -> Unit
 ) {
     PoolBackground {
@@ -152,7 +154,8 @@ fun LobbyScreen(
             )
             MenuTile(
                 title = "Choose Cue Stick",
-                subtitle = "${profile.ownedCueIds.size} of 12 unlocked · ${profile.equippedCue.name}",
+                subtitle = if (profile.pro) "All unlocked with Pro · ${profile.equippedCue.name}"
+                else "${profile.ownedCueIds.size} of 12 unlocked · ${profile.equippedCue.name}",
                 icon = Icons.Filled.Straighten,
                 accent = Color(0xFFE0A050),
                 modifier = Modifier.fillMaxWidth(),
@@ -160,7 +163,8 @@ fun LobbyScreen(
             )
             MenuTile(
                 title = "Table Selection",
-                subtitle = "${profile.ownedTableIds.size} of 20 unlocked · ${profile.equippedTable.name}",
+                subtitle = if (profile.pro) "All unlocked with Pro · ${profile.equippedTable.name}"
+                else "${profile.ownedTableIds.size} of 20 unlocked · ${profile.equippedTable.name}",
                 icon = Icons.Filled.GridView,
                 accent = Color(0xFF4CC38A),
                 modifier = Modifier.fillMaxWidth(),
@@ -172,6 +176,16 @@ fun LobbyScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = Chalk.copy(alpha = 0.45f),
                 modifier = Modifier.padding(top = 10.dp)
+            )
+            MenuTile(
+                title = "Mr. Pool Pro",
+                subtitle = if (profile.pro) "Active · everything unlocked, double prizes"
+                else "Every cue and table, double prizes, ${PlayerProfile.PRO_DAILY_BONUS} coins a day",
+                icon = Icons.Filled.WorkspacePremium,
+                accent = Color(0xFF8C6BFF),
+                modifier = Modifier.fillMaxWidth(),
+                badge = if (profile.pro) "ACTIVE" else "SUBSCRIPTION",
+                onClick = onSubscription
             )
             MenuTile(
                 title = "Coins & Rewards",

@@ -34,9 +34,13 @@ data class PoolTableSkin(
     /** Rail / frame colour as 0xAARRGGBB. */
     val railColor: Long,
     /** Pocket leather and trim colour as 0xAARRGGBB. */
-    val trimColor: Long
+    val trimColor: Long,
+    /** A table that comes with the subscription and cannot be bought with coins. */
+    val proOnly: Boolean = false
 ) {
-    val isFree: Boolean get() = price == 0
+    /** Free to everyone. A Pro table has no price because it is not for sale, not because
+     * it is free. */
+    val isFree: Boolean get() = price == 0 && !proOnly
 
     val cloth: ClothProperties get() = clothSpeed.toProperties()
 
@@ -84,6 +88,24 @@ data class PoolTableSkin(
                 0xFF10131Au.toLong(), 0xFF3B2B11u.toLong(), 0xFFFFC93Cu.toLong())
         )
 
-        fun byId(id: Int): PoolTableSkin = ALL.firstOrNull { it.id == id } ?: ALL.first()
+        /**
+         * The two tables only a subscriber plays on.
+         *
+         * Both run tournament cloth, which the shop already sells, so the subscription
+         * changes what the table looks like and never how the balls behave.
+         */
+        val PRO_ONLY: List<PoolTableSkin> = listOf(
+            PoolTableSkin(100, "Infinity Core", "Studio table", 0, ClothSpeed.FAST,
+                0xFF2A1B6Au.toLong(), 0xFF120A2Au.toLong(), 0xFF8C6BFFu.toLong(),
+                proOnly = true),
+            PoolTableSkin(101, "Neon Midnight", "After hours", 0, ClothSpeed.FAST,
+                0xFF0C2E2Au.toLong(), 0xFF0B0D10u.toLong(), 0xFF00E5D0u.toLong(),
+                proOnly = true)
+        )
+
+        /** Everything that exists, for looking up whatever the player has equipped. */
+        val EVERY: List<PoolTableSkin> = ALL + PRO_ONLY
+
+        fun byId(id: Int): PoolTableSkin = EVERY.firstOrNull { it.id == id } ?: ALL.first()
     }
 }

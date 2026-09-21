@@ -30,7 +30,10 @@ import androidx.compose.ui.unit.dp
 import com.mrpool.eightball.data.CueStick
 import com.mrpool.eightball.data.PlayerProfile
 
-/** The cue rack: twelve cues, the first one free and the rest priced from 200 coins up. */
+/**
+ * The cue rack: twelve cues, the first one free and the rest priced from 200 coins up,
+ * followed by the two that come with a subscription and are not for sale.
+ */
 @Composable
 fun CueShopScreen(
     profile: PlayerProfile,
@@ -42,7 +45,8 @@ fun CueShopScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = "Choose Cue Stick",
-                subtitle = "${profile.ownedCueIds.size} of ${CueStick.ALL.size} unlocked",
+                subtitle = if (profile.pro) "All ${CueStick.EVERY.size} unlocked with Pro"
+                else "${profile.ownedCueIds.size} of ${CueStick.ALL.size} unlocked",
                 coins = profile.coins,
                 onBack = onBack
             )
@@ -53,11 +57,11 @@ fun CueShopScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(CueStick.ALL, key = { it.id }) { cue ->
+                items(CueStick.EVERY, key = { it.id }) { cue ->
                     CueCard(
                         cue = cue,
                         owned = profile.owns(cue),
-                        equipped = profile.equippedCueId == cue.id,
+                        equipped = profile.equippedCue.id == cue.id,
                         affordable = profile.coins >= cue.price,
                         onBuy = { onBuy(cue) },
                         onEquip = { onEquip(cue) }
@@ -125,6 +129,17 @@ private fun CueCard(
             }
             when {
                 owned && equipped -> Unit
+                // Not for sale at any price, so it gets a label rather than a dead button.
+                !owned && cue.proOnly -> Text(
+                    "PRO ONLY",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF8C6BFF),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF8C6BFF).copy(alpha = 0.18f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+
                 owned -> Button(
                     onClick = onEquip,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C6E4A))

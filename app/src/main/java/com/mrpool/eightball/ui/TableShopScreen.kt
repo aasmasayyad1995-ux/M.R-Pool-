@@ -41,7 +41,8 @@ fun TableShopScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = "Table Selection",
-                subtitle = "${profile.ownedTableIds.size} of ${PoolTableSkin.ALL.size} unlocked",
+                subtitle = if (profile.pro) "All ${PoolTableSkin.EVERY.size} unlocked with Pro"
+                else "${profile.ownedTableIds.size} of ${PoolTableSkin.ALL.size} unlocked",
                 coins = profile.coins,
                 onBack = onBack
             )
@@ -50,11 +51,11 @@ fun TableShopScreen(
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(PoolTableSkin.ALL, key = { it.id }) { table ->
+                items(PoolTableSkin.EVERY, key = { it.id }) { table ->
                     TableCard(
                         table = table,
                         owned = profile.owns(table),
-                        equipped = profile.equippedTableId == table.id,
+                        equipped = profile.equippedTable.id == table.id,
                         affordable = profile.coins >= table.price,
                         onBuy = { onBuy(table) },
                         onEquip = { onEquip(table) }
@@ -111,6 +112,16 @@ private fun TableCard(
                     .clip(RoundedCornerShape(50))
                     .background(Gold)
                     .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+            // Not for sale at any price, so it gets a label rather than a dead button.
+            !owned && table.proOnly -> Text(
+                "PRO ONLY",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF8C6BFF),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFF8C6BFF).copy(alpha = 0.18f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
             )
             owned -> Button(
                 onClick = onEquip,

@@ -21,6 +21,7 @@ tap anywhere skips to the lobby.
 | **Play with Friend** | Two players on one device. No entry fee. |
 | **Choose Cue Stick** | 12 cues. The house cue is free, the rest start at **200 coins**. |
 | **Table Selection** | 20 tables. The local club is free, the rest start at **1,000 coins**. |
+| **Mr. Pool Pro** | A monthly subscription: every cue and table unlocked, double prize money, a bigger daily bonus. |
 | **Coins & Rewards** | Balance, daily bonus, and exactly what every match pays. |
 | **How to Play Pool** | Rules, controls, spin, position play and safety play. |
 
@@ -41,8 +42,9 @@ whether it plays safeties and whether it uses spin — see `ai/RobotDifficulty.k
 
 ## Money
 
-Coins are in-game currency only. Nothing in this app costs real money and there is no
-payment code anywhere in it.
+Coins are in-game currency. They are **won, never bought**, and there is no way to turn
+them back into money — no cash-out, no withdrawal, no entry fee. The only real money in
+this app is the optional subscription below.
 
 * **Every match is free to play**, against the robot and against a friend alike.
 * What a win pays depends only on the robot you beat: **25** for the beginner, **50** for
@@ -50,6 +52,40 @@ payment code anywhere in it.
 * The table is never a cost of admission — it changes how the cloth runs and how the game
   looks, nothing else.
 * Daily bonus of 50 coins, worth one win against the medium robot.
+
+## Mr. Pool Pro
+
+An optional monthly subscription, taken through Razorpay. The game is complete without it:
+Pro unlocks things faster and adds two cosmetics, and buys no advantage at the table.
+
+| What you get | |
+| --- | --- |
+| Every cue and table | All 12 cues and all 20 tables, unlocked while the subscription runs |
+| Bigger daily bonus | 250 coins a day instead of 50 |
+| Double prize money | 50 / 100 / 200 for beating the three robots instead of 25 / 50 / 100 |
+| Subscriber cosmetics | Two cues and two tables that are not for sale at any price |
+| A star by your name | Online opponents see it; it does nothing else |
+
+Deliberate limits on what Pro can be:
+
+* **No pay to win.** The Pro cues' stats sit inside the range the shop already sells and
+  the Pro tables use cloth the shop already sells, so a subscriber never holds something a
+  free player could not have earned. A test enforces this.
+* **Coins already spent stay spent.** A subscription unlocks rather than grants; when it
+  ends, anything bought with coins is still owned. Anything it was only lending goes back,
+  and an equipped Pro cue quietly falls back to the house cue rather than following the
+  player to a table they cannot use it on.
+* **The app cannot grant itself Pro.** The entitlement lives on the server and is only
+  ever written by a webhook carrying Razorpay's signature. The app asks and caches; it
+  never decides.
+* **Card and UPI details never enter the game.** Paying opens Razorpay's own hosted page
+  in the phone's browser.
+
+Both halves are off in the published APK: it is built without a server URL, so the Pro
+screen explains what is missing and the game plays free. Setting it up — Razorpay account,
+KYC, plan, webhook, and a disk that survives a redeploy — is in
+[`server/README.md`](server/README.md), along with what is still missing before this should
+carry real money.
 
 ## Rules implemented
 
@@ -111,18 +147,21 @@ place, the app, and the server never needs redeploying when they change.
 ```bash
 cd server
 ./gradlew run                 # listens on $PORT, or 8080
-./gradlew test                # 16 tests, including two clients over real WebSockets
+./gradlew test                # 42 tests: the hub, two clients over real WebSockets, and billing
 ```
 
 Deploy it anywhere that takes a Dockerfile — Render, Railway and Fly all have a free tier
 that fits. Then build the app pointing at it:
 
 ```bash
-./gradlew assembleDebug -PmatchServerUrl=wss://your-server.example.com/ws
+./gradlew assembleDebug \
+  -PmatchServerUrl=wss://your-server.example.com/ws \
+  -PbillingServerUrl=https://your-server.example.com
 ```
 
-Leave that property out and online play is simply switched off; the rest of the game is
-unaffected and the online screen says what is missing.
+Leave either property out and that feature is simply switched off; the rest of the game is
+unaffected and the screen in question says what is missing. Subscriptions need the Razorpay
+keys on the server as well — see [`server/README.md`](server/README.md).
 
 ## Sound
 
