@@ -1,0 +1,10 @@
+# Nothing built locally belongs in the image: the Dockerfile builds from source, and
+# copying a stale build directory in makes the image bigger and the build slower for no
+# reason at all.
+build/
+.gradle/
+*.log
+
+# Never let a local .env near the image. UPI id, admin password and the store path are
+# set in the hosting dashboard, not baked into a layer anyone who pulls the image can read.
+.env

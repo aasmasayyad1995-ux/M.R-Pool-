@@ -1,0 +1,44 @@
+# Fly.io. Cheaper than a Render paid instance, and the volume below is the part that
+# matters: without it entitlements.jsonl is wiped on every deploy and every subscriber
+# loses the month they paid for.
+#
+#   fly launch --no-deploy --copy-config      # from this directory, pick a name
+#   fly volumes create mrpool_data --size 1
+#   fly secrets set UPI_ID=... SUBSCRIPTION_PRICE=99 ADMIN_TOKEN=...
+#   fly deploy
+#
+# Change app to the name fly launch gave you.
+app = "mrpool-server"
+primary_region = "bom"          # Mumbai: closest to the players
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SUBSCRIPTION_STORE = "/data/entitlements.jsonl"
+  SUBSCRIPTION_DAYS = "30"
+  UPI_PAYEE_NAME = "Mr. Pool"
+
+# UPI_ID, SUBSCRIPTION_PRICE and ADMIN_TOKEN are set with `fly secrets set`, so they never
+# enter this file or the repository.
+
+[mounts]
+  source = "mrpool_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # Online play holds a WebSocket open for the length of a match, and a machine that
+  # stopped underneath it would drop both players out of their game.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/health"

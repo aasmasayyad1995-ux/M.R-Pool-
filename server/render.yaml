@@ -1,0 +1,36 @@
+# Render blueprint: https://render.com/docs/blueprint-spec
+#
+# Push this repository to GitHub, then in Render choose New > Blueprint and point it here.
+# Render reads this file and creates the service; you fill in the secrets it asks for.
+services:
+  - type: web
+    name: mrpool-server
+    runtime: docker
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+
+    # A disk needs a paid instance. That is not an upsell: Render's free instances have no
+    # persistent storage, so entitlements.jsonl would be wiped on every deploy and every
+    # subscriber would lose the month they paid for. Run free only while nobody is paying.
+    plan: starter
+    disk:
+      name: mrpool-data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: SUBSCRIPTION_STORE
+        value: /data/entitlements.jsonl
+      - key: SUBSCRIPTION_DAYS
+        value: "30"
+      - key: UPI_PAYEE_NAME
+        value: Mr. Pool
+
+      # Render asks for these when the blueprint is applied. They never enter the repo.
+      - key: UPI_ID
+        sync: false
+      - key: SUBSCRIPTION_PRICE
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false

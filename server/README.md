@@ -29,14 +29,105 @@ outside of localhost.
 
 ## Deploy it
 
-There is a `Dockerfile`, so anything that takes one will do — Render, Railway and Fly all
-have a free tier that fits this comfortably. Two things to set:
+There is a `Dockerfile`, so anything that takes one will do. Two config files are checked
+in so you do not have to write them: [`render.yaml`](render.yaml) and
+[`fly.toml`](fly.toml). Copy [`.env.example`](.env.example) to see every setting with an
+explanation.
 
-- The host must give the process a `PORT`; the server reads it.
+Whatever you pick:
+
+- The host gives the process a `PORT`; the server reads it.
 - Health check path: `/health`.
+- **If you are taking subscriptions, the service needs a disk mounted at `/data`.** Free
+  tiers give you a container with no persistent storage, so `entitlements.jsonl` is wiped
+  on every deploy and every subscriber loses the month they paid for. Online play alone
+  does not need one — it keeps nothing.
 
-Free tiers usually idle a service out after a period of no traffic. The first player to
-connect after that will wait a few seconds while it wakes up.
+Free tiers also idle a service out after a period of no traffic. The first player to
+connect after that waits a few seconds while it wakes up.
+
+### Render, step by step
+
+1. Sign up at [render.com](https://render.com) and connect this GitHub repository.
+2. **New → Blueprint**, pick the repo. Render reads `render.yaml` and offers a service
+   called `mrpool-server`.
+3. It will ask for three values. These never enter the repository:
+   - `UPI_ID` — your UPI id, where the money lands, e.g. `yourname@okhdfcbank`
+   - `SUBSCRIPTION_PRICE` — a plain number, e.g. `99`
+   - `ADMIN_TOKEN` — a long random password. Generate one: `openssl rand -hex 24`
+4. Apply. First build takes a few minutes; Gradle is compiling Kotlin inside the image.
+5. Check it: open `https://your-service.onrender.com/health`. It should say `ok`.
+
+`render.yaml` asks for the `starter` plan because that is the cheapest one that can have a
+disk. Drop it to `free` and delete the `disk:` block only while nobody is paying.
+
+### Fly.io, step by step
+
+Cheaper than a paid Render instance, but it is a command line rather than a web form.
+
+```bash
+cd server
+fly launch --no-deploy --copy-config     # pick a name; it rewrites `app` in fly.toml
+fly volumes create mrpool_data --size 1
+fly secrets set UPI_ID=yourname@okhdfcbank SUBSCRIPTION_PRICE=99 \
+  ADMIN_TOKEN=$(openssl rand -hex 24)
+fly deploy
+```
+
+`fly secrets set` prints nothing back, so note the admin token down when you generate it —
+you cannot read it out of Fly afterwards, only replace it.
+
+### Then point the app at it
+
+```bash
+./gradlew assembleDebug \
+  -PmatchServerUrl=wss://your-server/ws \
+  -PbillingServerUrl=https://your-server
+```
+
+Or set both in CI. Until the app is built with `billingServerUrl`, the Pro screen says
+subscriptions are unavailable — which is the correct behaviour, not a bug.
+
+### Checking it works before anyone real pays
+
+With the server running, walk the whole flow with `curl`. This is exactly what the app
+does, and it takes a minute:
+
+```bash
+SERVER=https://your-server
+TOKEN=your-admin-token
+
+# 1. Is billing switched on?
+curl -s $SERVER/billing/plan
+# {"configured":true,"price":"₹99 / month","upiId":"yourname@okhdfcbank"}
+
+# 2. A player asks to subscribe. Note the reference.
+curl -s -X POST $SERVER/billing/payment \
+  -H 'Content-Type: application/json' -d '{"player":"test-device"}'
+# {"reference":"MRP-K7J2Q","payLink":"upi://pay?pa=...&tn=MRP-K7J2Q",...}
+
+# 3. They say they have paid. This must NOT turn the subscription on.
+curl -s -X POST $SERVER/billing/claim -H 'Content-Type: application/json' \
+  -d '{"player":"test-device","reference":"MRP-K7J2Q","utr":"test"}'
+curl -s "$SERVER/billing/status?player=test-device"
+# {"active":false,...,"claim":"SUBMITTED",...}   <- still false. Good.
+
+# 4. Approve it from the page, then check again.
+curl -s "$SERVER/billing/status?player=test-device"
+# {"active":true,...}
+```
+
+Then **redeploy the service and run step 4 again**. If `active` goes back to `false`, your
+disk is not persistent and you must fix that before taking a single real rupee.
+
+### Approving payments
+
+Open `https://your-server/billing/admin?token=YOUR_ADMIN_TOKEN` on your phone, beside your
+banking app. It lists every payment waiting, with its reference and the transaction id the
+player typed. Match the reference and the amount against your account, then press Approve.
+
+Bookmark that URL. Anyone who has it can hand out subscriptions, so treat it like a
+password — which is what the token in it is.
 
 ## The protocol
 
@@ -112,26 +203,24 @@ alike, because a reference misread as another is a payment credited to the wrong
 | `POST` | `/billing/admin/decide` | Approve or reject one payment |
 | `POST` | `/billing/admin/revoke` | Take a subscription back |
 
-### Setting it up
+### The settings
 
-Deploy with these environment variables:
+Every one of these is explained in [`.env.example`](.env.example), and
+[**Deploy it**](#deploy-it) above has the click-by-click for Render and Fly.
 
-```
-UPI_ID=yourname@okhdfcbank
-UPI_PAYEE_NAME=Mr. Pool
-SUBSCRIPTION_PRICE=99
-ADMIN_TOKEN=<a long random string>
-SUBSCRIPTION_DAYS=30
-SUBSCRIPTION_STORE=/data/entitlements.jsonl
-```
+| Variable | |
+| --- | --- |
+| `UPI_ID` | Your UPI id. Where the money lands. |
+| `UPI_PAYEE_NAME` | The name a player's UPI app shows them. |
+| `SUBSCRIPTION_PRICE` | Rupees per month, a plain number. |
+| `SUBSCRIPTION_DAYS` | How many days one payment buys. Default 30. |
+| `ADMIN_TOKEN` | The password for the approvals page. |
+| `SUBSCRIPTION_STORE` | Where subscribers are remembered. Must be on a mounted disk. |
 
-Then build the app pointing at it:
-`./gradlew assembleDebug -PbillingServerUrl=https://your-server`
-
-`ADMIN_TOKEN` is the password for the approvals page. **Leave it blank and subscriptions
-switch off entirely** rather than leaving that page open to anyone who finds the URL — a
-test enforces that. Make it long and random; it is the only thing between the internet and
-a page that hands out subscriptions.
+`ADMIN_TOKEN` is the one to be careful with. **Leave it blank and subscriptions switch off
+entirely** rather than leaving that page open to anyone who finds the URL — a test
+enforces that. Make it long and random (`openssl rand -hex 24`); it is the only thing
+between the internet and a page that hands out subscriptions.
 
 ### Things to know before this takes real money
 
