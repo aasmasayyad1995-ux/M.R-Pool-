@@ -1,13 +1,14 @@
 # Render blueprint: https://render.com/docs/blueprint-spec
 #
-# Push this repository to GitHub, then in Render choose New > Blueprint and point it here.
-# Render reads this file and creates the service; you fill in the secrets it asks for.
+# In Render: New > Blueprint, pick this repository, leave "Blueprint Path" empty. Render
+# finds this file at the repo root, creates the service, and asks you for the secrets.
 services:
   - type: web
     name: mrpool-server
     runtime: docker
+    # rootDir is the build context; dockerfilePath is relative to the repo root.
     rootDir: server
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./server/Dockerfile
     healthCheckPath: /health
 
     # A disk needs a paid instance. That is not an upsell: Render's free instances have no

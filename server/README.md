@@ -30,7 +30,7 @@ outside of localhost.
 ## Deploy it
 
 There is a `Dockerfile`, so anything that takes one will do. Two config files are checked
-in so you do not have to write them: [`render.yaml`](render.yaml) and
+in so you do not have to write them: [`render.yaml`](../render.yaml) and
 [`fly.toml`](fly.toml). Copy [`.env.example`](.env.example) to see every setting with an
 explanation.
 
@@ -49,8 +49,9 @@ connect after that waits a few seconds while it wakes up.
 ### Render, step by step
 
 1. Sign up at [render.com](https://render.com) and connect this GitHub repository.
-2. **New → Blueprint**, pick the repo. Render reads `render.yaml` and offers a service
-   called `mrpool-server`.
+2. **New → Blueprint**, pick the repo. Leave **Blueprint Path** empty — `render.yaml`
+   sits at the repo root, which is where Render looks by default. It then offers a
+   service called `mrpool-server`.
 3. It will ask for three values. These never enter the repository:
    - `UPI_ID` — your UPI id, where the money lands, e.g. `yourname@okhdfcbank`
    - `SUBSCRIPTION_PRICE` — a plain number, e.g. `99`
@@ -58,7 +59,7 @@ connect after that waits a few seconds while it wakes up.
 4. Apply. First build takes a few minutes; Gradle is compiling Kotlin inside the image.
 5. Check it: open `https://your-service.onrender.com/health`. It should say `ok`.
 
-`render.yaml` asks for the `starter` plan because that is the cheapest one that can have a
+`render.yaml` (at the repo root) asks for the `starter` plan because that is the cheapest one that can have a
 disk. Drop it to `free` and delete the `disk:` block only while nobody is paying.
 
 ### Fly.io, step by step

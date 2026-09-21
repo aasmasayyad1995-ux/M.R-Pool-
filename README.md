@@ -170,7 +170,7 @@ cd server
 ./gradlew test                # 42 tests: the hub, two clients over real WebSockets, and billing
 ```
 
-Deploy it anywhere that takes a Dockerfile. `server/render.yaml` and `server/fly.toml` are
+Deploy it anywhere that takes a Dockerfile. `render.yaml` and `server/fly.toml` are
 checked in, so on either host it is a form to fill rather than a file to write — see
 [`server/README.md`](server/README.md) for the click-by-click. If you are taking
 subscriptions the service needs a disk mounted at `/data`; online play alone does not,
