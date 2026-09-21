@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -53,7 +52,6 @@ fun LobbyScreen(
     onChooseTable: () -> Unit,
     onHowToPlay: () -> Unit,
     onWallet: () -> Unit,
-    onSubscription: () -> Unit,
     onToggleSound: () -> Unit
 ) {
     PoolBackground {
@@ -174,16 +172,6 @@ fun LobbyScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = Chalk.copy(alpha = 0.45f),
                 modifier = Modifier.padding(top = 10.dp)
-            )
-            MenuTile(
-                title = "Mr. Pool Pro",
-                subtitle = if (profile.pro) "Active · double prizes and ${PlayerProfile.PRO_DAILY_BONUS} coins a day"
-                else "Double prizes, ${PlayerProfile.PRO_DAILY_BONUS} coins a day, subscriber cues",
-                icon = Icons.Filled.WorkspacePremium,
-                accent = Color(0xFF8C6BFF),
-                modifier = Modifier.fillMaxWidth(),
-                badge = if (profile.pro) "ACTIVE" else "SUBSCRIPTION",
-                onClick = onSubscription
             )
             MenuTile(
                 title = "Coins & Rewards",

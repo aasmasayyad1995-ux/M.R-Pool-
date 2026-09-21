@@ -49,9 +49,7 @@ class SoundToggleTest {
             ownedCueIds = setOf(0, 3),
             equippedCueId = 3,
             wins = 7,
-            playerName = "Asad",
-            proUntilMillis = 99L,
-            pro = true
+            playerName = "Asad"
         )
         val after = before.withSoundToggled()
         assertNotEquals(before.soundEnabled, after.soundEnabled)
