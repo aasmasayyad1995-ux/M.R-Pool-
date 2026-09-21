@@ -154,8 +154,7 @@ fun LobbyScreen(
             )
             MenuTile(
                 title = "Choose Cue Stick",
-                subtitle = if (profile.pro) "All unlocked with Pro · ${profile.equippedCue.name}"
-                else "${profile.ownedCueIds.size} of 12 unlocked · ${profile.equippedCue.name}",
+                subtitle = "${profile.ownedCueIds.size} of 12 unlocked · ${profile.equippedCue.name}",
                 icon = Icons.Filled.Straighten,
                 accent = Color(0xFFE0A050),
                 modifier = Modifier.fillMaxWidth(),
@@ -163,8 +162,7 @@ fun LobbyScreen(
             )
             MenuTile(
                 title = "Table Selection",
-                subtitle = if (profile.pro) "All unlocked with Pro · ${profile.equippedTable.name}"
-                else "${profile.ownedTableIds.size} of 20 unlocked · ${profile.equippedTable.name}",
+                subtitle = "${profile.ownedTableIds.size} of 20 unlocked · ${profile.equippedTable.name}",
                 icon = Icons.Filled.GridView,
                 accent = Color(0xFF4CC38A),
                 modifier = Modifier.fillMaxWidth(),
@@ -179,8 +177,8 @@ fun LobbyScreen(
             )
             MenuTile(
                 title = "Mr. Pool Pro",
-                subtitle = if (profile.pro) "Active · everything unlocked, double prizes"
-                else "Every cue and table, double prizes, ${PlayerProfile.PRO_DAILY_BONUS} coins a day",
+                subtitle = if (profile.pro) "Active · double prizes and ${PlayerProfile.PRO_DAILY_BONUS} coins a day"
+                else "Double prizes, ${PlayerProfile.PRO_DAILY_BONUS} coins a day, subscriber cues",
                 icon = Icons.Filled.WorkspacePremium,
                 accent = Color(0xFF8C6BFF),
                 modifier = Modifier.fillMaxWidth(),

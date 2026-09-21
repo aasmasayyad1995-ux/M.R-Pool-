@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit
  * Talks to the subscription half of the match server.
  *
  * Deliberately dull. Every judgement about what a player is entitled to belongs on the
- * server, where the payment provider's signature can be checked; this only carries the
- * question there and the answer back.
+ * server, and in the end with the person reading their own bank statement; this only
+ * carries the question there and the answer back.
  */
 class SubscriptionClient(
     private val baseUrl: String = BillingConfig.serverUrl,
@@ -33,20 +33,28 @@ class SubscriptionClient(
         Subscription.parse(get("/billing/status?player=${encode(playerId)}"))
     }
 
-    /**
-     * Starts a subscription and returns the provider's hosted payment page.
-     *
-     * The game never sees a card or a UPI id: that page opens in the phone's browser and
-     * the money is typed into the provider's own site.
-     */
-    suspend fun beginSubscription(playerId: String): String? = withContext(Dispatchers.IO) {
-        val body = post("/billing/subscribe", playerId) ?: return@withContext null
-        Json.readObject(body)?.get("url") as? String
-    }
+    /** Asks for a reference and the `upi://` link to pay it with. */
+    suspend fun paymentInstructions(playerId: String): PaymentInstructions? =
+        withContext(Dispatchers.IO) {
+            PaymentInstructions.parse(post("/billing/payment", mapOf("player" to playerId)))
+        }
 
-    suspend fun cancel(playerId: String): Boolean = withContext(Dispatchers.IO) {
-        val body = post("/billing/cancel", playerId) ?: return@withContext false
-        Json.readObject(body)?.get("cancelled") as? Boolean ?: false
+    /**
+     * Tells the server the player says they have paid.
+     *
+     * This grants nothing. It puts the payment in the owner's queue to be checked against
+     * their bank.
+     */
+    suspend fun submitClaim(
+        playerId: String,
+        reference: String,
+        utr: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        val body = post(
+            "/billing/claim",
+            mapOf("player" to playerId, "reference" to reference, "utr" to utr)
+        ) ?: return@withContext false
+        Json.readObject(body)?.get("submitted") as? Boolean ?: false
     }
 
     private fun get(path: String): String? = runCatching {
@@ -55,16 +63,15 @@ class SubscriptionClient(
         }
     }.getOrNull()
 
-    private fun post(path: String, playerId: String): String? = runCatching {
+    private fun post(path: String, fields: Map<String, String>): String? = runCatching {
         val request = Request.Builder()
             .url(baseUrl + path)
-            .post(Json.write(mapOf("player" to playerId)).toRequestBody(jsonType))
+            .post(Json.write(fields).toRequestBody(jsonType))
             .build()
         http.newCall(request).execute().use { response ->
             if (response.isSuccessful) response.body?.string() else null
         }
     }.getOrNull()
 
-    private fun encode(value: String): String =
-        java.net.URLEncoder.encode(value, "UTF-8")
+    private fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")
 }

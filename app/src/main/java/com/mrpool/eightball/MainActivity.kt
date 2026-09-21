@@ -28,6 +28,8 @@ import androidx.core.view.WindowCompat
 import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.audio.GameAudio
 import com.mrpool.eightball.billing.BillingConfig
+import com.mrpool.eightball.billing.ClaimState
+import com.mrpool.eightball.billing.PaymentInstructions
 import com.mrpool.eightball.billing.SubscriptionClient
 import com.mrpool.eightball.billing.SubscriptionPlan
 import com.mrpool.eightball.audio.Sound
@@ -117,13 +119,17 @@ private fun MrPoolApp() {
         if (BillingConfig.isConfigured) SubscriptionClient() else null
     }
     var plan by remember { mutableStateOf(SubscriptionPlan.UNAVAILABLE) }
+    var payment by remember { mutableStateOf<PaymentInstructions?>(null) }
+    var claimState by remember { mutableStateOf<ClaimState?>(null) }
     var billingBusy by remember { mutableStateOf(false) }
     var billingNotice by remember { mutableStateOf<String?>(null) }
 
     /** Asks the server what this install has paid for, and caches the answer. */
     suspend fun refreshSubscription() {
         val client = billing ?: return
-        store.applySubscription(client.status(store.deviceId))
+        val subscription = client.status(store.deviceId)
+        claimState = subscription.claimState
+        store.applySubscription(subscription)
     }
 
     LaunchedEffect(billing) {
@@ -277,29 +283,49 @@ private fun MrPoolApp() {
         Screen.Subscription -> SubscriptionScreen(
             profile = profile,
             plan = plan,
+            payment = payment,
+            claimState = claimState,
             busy = billingBusy,
             notice = billingNotice,
-            onSubscribe = {
+            onStartPayment = {
                 billingNotice = null
                 billingBusy = true
                 scope.launch {
-                    val url = billing?.beginSubscription(store.deviceId)
+                    payment = billing?.paymentInstructions(store.deviceId)
                     billingBusy = false
-                    if (url == null) {
+                    if (payment == null) {
                         billingNotice = "Could not reach the subscription server."
-                        return@launch
                     }
-                    // The payment happens on the provider's own page, in the phone's
-                    // browser. Nothing about a card or a UPI id passes through this app.
-                    try {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                        billingNotice = "Finish the payment in your browser, then come " +
-                            "back — this screen will pick it up."
-                    } catch (e: ActivityNotFoundException) {
-                        billingNotice = "No browser on this phone to open the payment page."
+                }
+            },
+            onOpenUpiApp = { link ->
+                // A upi: link is handled by whichever UPI app the phone has. Nothing about
+                // the payment passes through this game.
+                try {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(link))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (notInstalled: ActivityNotFoundException) {
+                    billingNotice = "No UPI app found. Pay ${plan.price} to ${plan.upiId} " +
+                        "by hand, with the reference in the note."
+                }
+            },
+            onSubmitClaim = { utr ->
+                val reference = payment?.reference
+                if (reference == null) {
+                    billingNotice = "Start the payment first."
+                } else {
+                    billingBusy = true
+                    scope.launch {
+                        val sent = billing?.submitClaim(store.deviceId, reference, utr) ?: false
+                        if (sent) refreshSubscription()
+                        billingBusy = false
+                        billingNotice = if (sent) {
+                            "Sent. Your payment will be checked by hand — come back shortly."
+                        } else {
+                            "Could not send that just now. Try again in a moment."
+                        }
                     }
                 }
             },
@@ -309,19 +335,10 @@ private fun MrPoolApp() {
                 scope.launch {
                     refreshSubscription()
                     billingBusy = false
-                    billingNotice = if (store.current.pro) "Subscription active."
-                    else "No payment found yet. If you have just paid, give it a moment."
-                }
-            },
-            onCancel = {
-                billingBusy = true
-                scope.launch {
-                    val stopped = billing?.cancel(store.deviceId) ?: false
-                    billingBusy = false
-                    billingNotice = if (stopped) {
-                        "Renewal cancelled. Pro stays on until the month you paid for ends."
-                    } else {
-                        "Could not cancel just now. Try again in a moment."
+                    billingNotice = when {
+                        store.current.pro -> "Subscription active."
+                        claimState == ClaimState.SUBMITTED -> "Still waiting to be checked."
+                        else -> "No payment found yet."
                     }
                 }
             },

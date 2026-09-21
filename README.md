@@ -21,7 +21,7 @@ tap anywhere skips to the lobby.
 | **Play with Friend** | Two players on one device. No entry fee. |
 | **Choose Cue Stick** | 12 cues. The house cue is free, the rest start at **200 coins**. |
 | **Table Selection** | 20 tables. The local club is free, the rest start at **1,000 coins**. |
-| **Mr. Pool Pro** | A monthly subscription: every cue and table unlocked, double prize money, a bigger daily bonus. |
+| **Mr. Pool Pro** | An optional monthly subscription, paid by UPI: double prize money, a bigger daily bonus, subscriber cosmetics. |
 | **Coins & Rewards** | Balance, daily bonus, and exactly what every match pays. |
 | **How to Play Pool** | Rules, controls, spin, position play and safety play. |
 
@@ -44,7 +44,8 @@ whether it plays safeties and whether it uses spin — see `ai/RobotDifficulty.k
 
 Coins are in-game currency. They are **won, never bought**, and there is no way to turn
 them back into money — no cash-out, no withdrawal, no entry fee. The only real money in
-this app is the optional subscription below.
+this app is the optional subscription below, and it buys no coins: it raises what playing
+pays, and the playing still has to happen.
 
 * **Every match is free to play**, against the robot and against a friend alike.
 * What a win pays depends only on the robot you beat: **25** for the beginner, **50** for
@@ -55,37 +56,56 @@ this app is the optional subscription below.
 
 ## Mr. Pool Pro
 
-An optional monthly subscription, taken through Razorpay. The game is complete without it:
-Pro unlocks things faster and adds two cosmetics, and buys no advantage at the table.
+An optional monthly subscription, paid by **UPI straight to the owner** — no payment
+gateway, no commission. The game is complete without it, and Pro buys no advantage at the
+table.
 
 | What you get | |
 | --- | --- |
-| Every cue and table | All 12 cues and all 20 tables, unlocked while the subscription runs |
 | Bigger daily bonus | 250 coins a day instead of 50 |
 | Double prize money | 50 / 100 / 200 for beating the three robots instead of 25 / 50 / 100 |
 | Subscriber cosmetics | Two cues and two tables that are not for sale at any price |
 | A star by your name | Online opponents see it; it does nothing else |
 
-Deliberate limits on what Pro can be:
+**The shop is untouched.** All 12 cues and all 20 tables are still earned with coins, by
+subscribers and everyone else alike — a subscriber and a free player who have played the
+same amount hold exactly the same cues. A test enforces that, and the Pro cosmetics' stats
+sit inside the range the shop already sells, so nothing across an online table was bought
+with money.
 
-* **No pay to win.** The Pro cues' stats sit inside the range the shop already sells and
-  the Pro tables use cloth the shop already sells, so a subscriber never holds something a
-  free player could not have earned. A test enforces this.
-* **Coins already spent stay spent.** A subscription unlocks rather than grants; when it
-  ends, anything bought with coins is still owned. Anything it was only lending goes back,
-  and an equipped Pro cue quietly falls back to the house cue rather than following the
-  player to a table they cannot use it on.
-* **The app cannot grant itself Pro.** The entitlement lives on the server and is only
-  ever written by a webhook carrying Razorpay's signature. The app asks and caches; it
-  never decides.
-* **Card and UPI details never enter the game.** Paying opens Razorpay's own hosted page
-  in the phone's browser.
+### How paying works, and what it cannot do
+
+There is no gateway, so **nothing tells the server that money arrived** — UPI sends no
+callback to anyone but the bank. The flow is honest about that:
+
+1. The player taps Subscribe and gets a short reference, `MRP-K7J2Q`, and a `upi://` link.
+2. The link opens GPay, PhonePe or Paytm with the reference already in the note. The money
+   goes straight to the owner. The game never sees a UPI id, a PIN or a card.
+3. The player taps **I have paid**. This grants nothing — it queues the payment.
+4. The owner opens the approvals page, matches the reference against their own bank
+   statement, and presses Approve. **That is the only thing that turns a subscription on.**
+
+Two consequences, stated plainly rather than buried:
+
+* **It is not instant.** A person has to look.
+* **Nothing renews by itself.** UPI AutoPay needs a payment provider. Each month the player
+  pays again.
+
+Other deliberate limits:
+
+* **Coins already spent stay spent.** A subscription lends the cosmetics; when it ends they
+  go back, and an equipped Pro cue quietly falls back to the house cue rather than
+  following the player to a table they cannot use it on.
+* **The app cannot grant itself Pro.** The entitlement lives on the server, and the server
+  only writes it when the owner approves.
+* **The approvals page is switched off without a password.** A blank `ADMIN_TOKEN`
+  disables subscriptions entirely rather than leaving that page open to anyone who finds
+  the URL.
 
 Both halves are off in the published APK: it is built without a server URL, so the Pro
-screen explains what is missing and the game plays free. Setting it up — Razorpay account,
-KYC, plan, webhook, and a disk that survives a redeploy — is in
-[`server/README.md`](server/README.md), along with what is still missing before this should
-carry real money.
+screen explains what is missing and the game plays free. Setting it up — and what is still
+missing before this should carry real money — is in
+[`server/README.md`](server/README.md).
 
 ## Rules implemented
 
@@ -160,8 +180,8 @@ that fits. Then build the app pointing at it:
 ```
 
 Leave either property out and that feature is simply switched off; the rest of the game is
-unaffected and the screen in question says what is missing. Subscriptions need the Razorpay
-keys on the server as well — see [`server/README.md`](server/README.md).
+unaffected and the screen in question says what is missing. Subscriptions also need a UPI
+id and an admin password on the server — see [`server/README.md`](server/README.md).
 
 ## Sound
 

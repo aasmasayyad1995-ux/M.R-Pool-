@@ -41,8 +41,7 @@ fun TableShopScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = "Table Selection",
-                subtitle = if (profile.pro) "All ${PoolTableSkin.EVERY.size} unlocked with Pro"
-                else "${profile.ownedTableIds.size} of ${PoolTableSkin.ALL.size} unlocked",
+                subtitle = "${profile.ownedTableIds.size} of ${PoolTableSkin.ALL.size} unlocked",
                 coins = profile.coins,
                 onBack = onBack
             )

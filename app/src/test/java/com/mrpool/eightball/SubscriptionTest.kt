@@ -1,6 +1,8 @@
 package com.mrpool.eightball
 
 import com.mrpool.eightball.ai.RobotDifficulty
+import com.mrpool.eightball.billing.ClaimState
+import com.mrpool.eightball.billing.PaymentInstructions
 import com.mrpool.eightball.billing.Subscription
 import com.mrpool.eightball.billing.SubscriptionPlan
 import com.mrpool.eightball.data.CueStick
@@ -66,16 +68,35 @@ class SubscriptionTest {
     // --------------------------------------------------------------- what it unlocks
 
     @Test
-    fun `a subscription unlocks every cue and every table`() {
-        for (cue in CueStick.EVERY) assertTrue("${cue.name} should be unlocked", paid.owns(cue))
-        for (table in PoolTableSkin.EVERY) assertTrue(paid.owns(table))
+    fun `a subscription carries the Pro items and nothing else`() {
+        for (cue in CueStick.PRO_ONLY) assertTrue("${cue.name} should be unlocked", paid.owns(cue))
+        for (table in PoolTableSkin.PRO_ONLY) assertTrue(paid.owns(table))
     }
 
     @Test
-    fun `a subscription cannot be spent on the shop`() {
+    fun `a subscription buys nothing in the shop`() {
         val expensive = CueStick.ALL.maxBy { it.price }
-        assertTrue(paid.owns(expensive))
-        assertFalse("already unlocked, so there is nothing to buy", paid.canBuy(expensive))
+        assertFalse(
+            "the shop is earned with coins, by subscribers and everyone else alike",
+            paid.owns(expensive)
+        )
+        assertTrue("so a subscriber still has to buy it", paid.canBuy(expensive))
+        assertFalse("and a free player is in exactly the same position", free.owns(expensive))
+    }
+
+    @Test
+    fun `a subscriber and a free player who played the same have the same cues`() {
+        val earned = setOf(0, CueStick.ALL[3].id, CueStick.ALL[5].id)
+        val freePlayer = PlayerProfile(ownedCueIds = earned)
+        val subscriber = PlayerProfile(ownedCueIds = earned, pro = true)
+
+        val shopOwnedByFree = CueStick.ALL.filter { freePlayer.owns(it) }.map { it.id }
+        val shopOwnedByPro = CueStick.ALL.filter { subscriber.owns(it) }.map { it.id }
+        assertEquals(
+            "nothing across an online table should have been bought with money",
+            shopOwnedByFree,
+            shopOwnedByPro
+        )
     }
 
     // ------------------------------------------------------------------ what it pays
@@ -159,10 +180,25 @@ class SubscriptionTest {
 
     @Test
     fun `the server's answer is read as sent`() {
-        val parsed = Subscription.parse("""{"active":true,"until":1700000000000,"status":"active"}""")
+        val parsed = Subscription.parse(
+            """{"active":true,"until":1700000000000,"claim":"APPROVED","reference":"MRP-K7J2Q"}"""
+        )
         assertTrue(parsed.isActive(1_699_000_000_000L))
         assertFalse("it must expire by itself", parsed.isActive(1_700_000_000_001L))
-        assertEquals("active", parsed.status)
+        assertEquals(ClaimState.APPROVED, parsed.claimState)
+        assertEquals("MRP-K7J2Q", parsed.reference)
+    }
+
+    @Test
+    fun `a payment waiting to be checked is not a subscription`() {
+        val waiting = Subscription.parse(
+            """{"active":false,"until":0,"claim":"SUBMITTED","reference":"MRP-K7J2Q"}"""
+        )
+        assertFalse(
+            "saying you have paid must never unlock anything",
+            waiting.isActive(System.currentTimeMillis())
+        )
+        assertTrue("but the screen should be able to say it is being checked", waiting.isWaitingOnOwner)
     }
 
     @Test
@@ -172,9 +208,9 @@ class SubscriptionTest {
             "",
             "not json",
             "<html>captive portal login</html>",
-            """{"active":false,"until":0,"status":"none"}""",
+            """{"active":false,"until":0,"claim":"SUBMITTED"}""",
             """{"active":true}""",
-            """{"active":true,"until":0,"status":"active"}"""
+            """{"active":true,"until":0,"claim":"APPROVED"}"""
         )
         for (body in nothing) {
             val parsed = Subscription.parse(body)
@@ -186,12 +222,31 @@ class SubscriptionTest {
     }
 
     @Test
-    fun `a cancelled subscription still runs to the end of the month it paid for`() {
+    fun `a rejected payment leaves the player exactly where they were`() {
         val parsed = Subscription.parse(
-            """{"active":true,"until":1700000000000,"status":"cancelled"}"""
+            """{"active":false,"until":0,"claim":"REJECTED","reference":"MRP-K7J2Q"}"""
         )
-        assertTrue("the month was paid for", parsed.isActive(1_699_000_000_000L))
-        assertTrue("but the app should be able to say it is ending", parsed.isEnding)
+        assertFalse(parsed.isActive(System.currentTimeMillis()))
+        assertEquals(ClaimState.REJECTED, parsed.claimState)
+        assertFalse(parsed.isWaitingOnOwner)
+    }
+
+    @Test
+    fun `the payment instructions are read, or refused outright`() {
+        val given = PaymentInstructions.parse(
+            """{"reference":"MRP-K7J2Q","payLink":"upi://pay?pa=a%40b&am=99&tn=MRP-K7J2Q",""" +
+                """"upiId":"a@b","price":"₹99 / month"}"""
+        )
+        assertEquals("MRP-K7J2Q", given!!.reference)
+        assertTrue(given.payLink.startsWith("upi://"))
+        assertEquals("a@b", given.upiId)
+
+        // Without a reference or a link there is nothing a player could pay, so refusing
+        // beats showing a payment screen that cannot lead anywhere.
+        assertEquals(null, PaymentInstructions.parse(null))
+        assertEquals(null, PaymentInstructions.parse("nonsense"))
+        assertEquals(null, PaymentInstructions.parse("""{"payLink":"upi://pay"}"""))
+        assertEquals(null, PaymentInstructions.parse("""{"reference":"MRP-K7J2Q"}"""))
     }
 
     @Test
@@ -200,8 +255,11 @@ class SubscriptionTest {
         assertFalse(SubscriptionPlan.parse("garbage").configured)
         assertFalse(SubscriptionPlan.parse("""{"configured":false,"price":""}""").configured)
 
-        val live = SubscriptionPlan.parse("""{"configured":true,"price":"₹99 / month"}""")
+        val live = SubscriptionPlan.parse(
+            """{"configured":true,"price":"₹99 / month","upiId":"asad@okhdfcbank"}"""
+        )
         assertTrue(live.configured)
         assertEquals("₹99 / month", live.price)
+        assertEquals("asad@okhdfcbank", live.upiId)
     }
 }

@@ -3,59 +3,48 @@ package com.mrpool.server
 import com.mrpool.server.billing.Billing
 import com.mrpool.server.billing.BillingConfig
 import com.mrpool.server.billing.Entitlements
-import com.mrpool.server.billing.NewSubscription
-import com.mrpool.server.billing.Signature
-import com.mrpool.server.billing.SubscriptionGateway
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
  * The subscription over real HTTP, through the real routing.
  *
- * [BillingTest] covers the rules; this covers the wiring — the paths, the body the app
- * sends, and the header Razorpay signs with. Those are exactly the things that compile
- * perfectly and are still wrong.
+ * [BillingTest] covers the rules; this covers the wiring and the one page a person opens
+ * in a browser — the two places where code that compiles perfectly is still wrong.
  */
 class BillingRoutesTest {
 
-    private val secret = "whsec_routes"
-
-    private class FakeGateway : SubscriptionGateway {
-        override fun createSubscription(playerId: String) =
-            NewSubscription("sub_routed", "https://rzp.io/i/routed")
-
-        override fun cancelSubscription(subscriptionId: String) = true
-    }
+    private val token = "admin-password-long-enough"
 
     private fun billing(): Billing = Billing(
         config = BillingConfig(
-            keyId = "rzp_test",
-            keySecret = "secret",
-            webhookSecret = secret,
-            planId = "plan_1",
-            priceLabel = "₹99 / month"
+            upiId = "asad@okhdfcbank",
+            payeeName = "Mr. Pool",
+            amount = "99",
+            adminToken = token,
+            days = 30,
+            storePath = ""
         ),
-        gateway = FakeGateway(),
         entitlements = Entitlements(),
-        clock = { 1_699_000_000_000L }
+        clock = { 1_700_000_000_000L },
+        random = Random(3)
     )
 
-    private fun chargedBody(subscriptionId: String) = """
-        {"entity":"event","event":"subscription.charged",
-         "payload":{"subscription":{"entity":{"id":"$subscriptionId","status":"active",
-         "current_end":1700000000,"notes":{}}}}}
-    """.trimIndent().replace("\n", "")
+    /** Digs the reference out of a `/billing/payment` reply. */
+    private fun referenceIn(body: String): String =
+        Regex(""""reference":"([^"]+)"""").find(body)!!.groupValues[1]
 
     @Test
-    fun `a server with no keys says subscriptions are unavailable`() = testApplication {
+    fun `a server with no UPI id says subscriptions are unavailable`() = testApplication {
         application { matchServer() }
 
         val plan = client.get("/billing/plan")
@@ -65,55 +54,112 @@ class BillingRoutesTest {
             "the app has to be able to tell, rather than failing at a dead endpoint"
         )
 
-        val attempt = client.post("/billing/subscribe") { setBody("""{"player":"p1"}""") }
+        val attempt = client.post("/billing/payment") { setBody("""{"player":"p1"}""") }
         assertEquals(HttpStatusCode.ServiceUnavailable, attempt.status)
     }
 
     @Test
-    fun `paying end to end, from the payment page to an active subscription`() = testApplication {
-        application { matchServer(billing = billing()) }
+    fun `paying end to end, from the UPI link to an approved subscription`() = testApplication {
+        val service = billing()
+        application { matchServer(billing = service) }
 
-        val started = client.post("/billing/subscribe") { setBody("""{"player":"p1"}""") }
+        val started = client.post("/billing/payment") { setBody("""{"player":"p1"}""") }
         assertEquals(HttpStatusCode.OK, started.status)
-        assertTrue(started.bodyAsText().contains("https://rzp.io/i/routed"))
+        val body = started.bodyAsText()
+        assertTrue(body.contains("upi:"), "the player needs a link their UPI app can open")
+        val reference = referenceIn(body)
 
         assertTrue(
             client.get("/billing/status?player=p1").bodyAsText().contains("\"active\":false"),
-            "opening the page is not paying"
+            "being given a link is not paying"
         )
 
-        val body = chargedBody("sub_routed")
-        val accepted = client.post("/billing/webhook") {
-            header("X-Razorpay-Signature", Signature.hmacSha256(body, secret))
-            setBody(body)
+        val claimed = client.post("/billing/claim") {
+            setBody("""{"player":"p1","reference":"$reference","utr":"402312345678"}""")
         }
-        assertEquals(HttpStatusCode.OK, accepted.status)
+        assertEquals(HttpStatusCode.OK, claimed.status)
+        assertTrue(
+            client.get("/billing/status?player=p1").bodyAsText().contains("\"active\":false"),
+            "saying you paid is still not paying — only the owner decides"
+        )
+
+        val decided = client.post("/billing/admin/decide") {
+            setBody("""{"token":"$token","reference":"$reference","approve":true}""")
+        }
+        assertEquals(HttpStatusCode.OK, decided.status)
 
         assertTrue(
             client.get("/billing/status?player=p1").bodyAsText().contains("\"active\":true"),
-            "the webhook should have turned the subscription on"
+            "the owner's approval should have turned the subscription on"
         )
     }
 
     @Test
-    fun `a webhook nobody signed is refused and grants nothing`() = testApplication {
-        application { matchServer(billing = billing()) }
-        client.post("/billing/subscribe") { setBody("""{"player":"p1"}""") }
+    fun `nobody without the password can approve anything`() = testApplication {
+        val service = billing()
+        application { matchServer(billing = service) }
 
-        val body = chargedBody("sub_routed")
-        val forged = client.post("/billing/webhook") {
-            header("X-Razorpay-Signature", "0".repeat(64))
-            setBody(body)
+        val started = client.post("/billing/payment") { setBody("""{"player":"p1"}""") }
+        val reference = referenceIn(started.bodyAsText())
+        client.post("/billing/claim") {
+            setBody("""{"player":"p1","reference":"$reference","utr":"1"}""")
         }
-        assertEquals(HttpStatusCode.BadRequest, forged.status)
 
-        val unsigned = client.post("/billing/webhook") { setBody(body) }
-        assertEquals(HttpStatusCode.BadRequest, unsigned.status)
+        for (guess in listOf("", "wrong", token.dropLast(1))) {
+            val attempt = client.post("/billing/admin/decide") {
+                setBody("""{"token":"$guess","reference":"$reference","approve":true}""")
+            }
+            assertEquals(HttpStatusCode.Unauthorized, attempt.status)
+        }
+        val noToken = client.post("/billing/admin/decide") {
+            setBody("""{"reference":"$reference","approve":true}""")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, noToken.status)
 
         assertTrue(
             client.get("/billing/status?player=p1").bodyAsText().contains("\"active\":false"),
-            "a forged webhook must never hand out a subscription"
+            "a guessed password must never hand out a subscription"
         )
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/billing/admin").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/billing/admin?token=wrong").status)
+    }
+
+    @Test
+    fun `the approvals page shows what is waiting`() = testApplication {
+        val service = billing()
+        application { matchServer(billing = service) }
+
+        val started = client.post("/billing/payment") { setBody("""{"player":"p1"}""") }
+        val reference = referenceIn(started.bodyAsText())
+        client.post("/billing/claim") {
+            setBody("""{"player":"p1","reference":"$reference","utr":"402312345678"}""")
+        }
+
+        val page = client.get("/billing/admin?token=$token")
+        assertEquals(HttpStatusCode.OK, page.status)
+        val html = page.bodyAsText()
+        assertTrue(html.contains(reference), "the owner needs the reference to match the payment")
+        assertTrue(html.contains("402312345678"), "and the transaction number")
+        assertTrue(html.contains("Approve"))
+    }
+
+    @Test
+    fun `a transaction number cannot smuggle script into the owner's browser`() = testApplication {
+        val service = billing()
+        application { matchServer(billing = service) }
+
+        val started = client.post("/billing/payment") { setBody("""{"player":"p1"}""") }
+        val reference = referenceIn(started.bodyAsText())
+        client.post("/billing/claim") {
+            setBody("""{"player":"p1","reference":"$reference","utr":"<script>alert(1)</script>"}""")
+        }
+
+        val html = client.get("/billing/admin?token=$token").bodyAsText()
+        assertFalse(
+            html.contains("<script>alert(1)</script>"),
+            "this page is opened by the one person who can grant subscriptions"
+        )
+        assertTrue(html.contains("&lt;script&gt;"), "it should be shown, escaped, not dropped")
     }
 
     @Test
@@ -122,7 +168,11 @@ class BillingRoutesTest {
         assertEquals(HttpStatusCode.BadRequest, client.get("/billing/status").status)
         assertEquals(
             HttpStatusCode.BadRequest,
-            client.post("/billing/subscribe") { setBody("{}") }.status
+            client.post("/billing/payment") { setBody("{}") }.status
+        )
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            client.post("/billing/claim") { setBody("""{"player":"p1","reference":"MRP-NOPE"}""") }.status
         )
     }
 }

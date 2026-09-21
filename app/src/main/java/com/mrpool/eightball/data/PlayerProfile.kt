@@ -35,15 +35,17 @@ data class PlayerProfile(
     // ------------------------------------------------------------------- what is owned
 
     /**
-     * A subscription unlocks every cue, including the two that are not for sale.
+     * The shop is unaffected by the subscription: every cue in it is still earned with
+     * coins. Pro only carries the two cues that are not for sale at all.
      *
-     * It unlocks rather than grants: coins already spent stay spent and stay owned, so a
-     * subscription running out takes back only what it lent.
+     * Keeping it this way is the point. A subscriber and a free player who have played the
+     * same amount hold the same cues, so nothing across an online table was bought.
      */
-    fun owns(cue: CueStick): Boolean = cue.isFree || pro || ownedCueIds.contains(cue.id)
+    fun owns(cue: CueStick): Boolean =
+        cue.isFree || ownedCueIds.contains(cue.id) || (cue.proOnly && pro)
 
     fun owns(table: PoolTableSkin): Boolean =
-        table.isFree || pro || ownedTableIds.contains(table.id)
+        table.isFree || ownedTableIds.contains(table.id) || (table.proOnly && pro)
 
     /** Pro items are never for sale, whatever the player's balance. */
     fun canBuy(cue: CueStick): Boolean = !cue.proOnly && !owns(cue)

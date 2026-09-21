@@ -45,8 +45,7 @@ fun CueShopScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = "Choose Cue Stick",
-                subtitle = if (profile.pro) "All ${CueStick.EVERY.size} unlocked with Pro"
-                else "${profile.ownedCueIds.size} of ${CueStick.ALL.size} unlocked",
+                subtitle = "${profile.ownedCueIds.size} of ${CueStick.ALL.size} unlocked",
                 coins = profile.coins,
                 onBack = onBack
             )

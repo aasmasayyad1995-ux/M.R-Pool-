@@ -7,39 +7,22 @@ import java.util.concurrent.ConcurrentHashMap
  * What one player has paid for.
  *
  * @param playerId the app's install id, which is all the identity this game has
- * @param subscriptionId the Razorpay subscription this came from
- * @param status Razorpay's own word for it, passed through so the app can explain itself
- * @param paidUntilMillis the end of the cycle the player has already paid for
+ * @param paidUntilMillis when the subscription runs out
  */
 data class Entitlement(
     val playerId: String,
-    val subscriptionId: String,
-    val status: String,
     val paidUntilMillis: Long
 ) {
-    /**
-     * True while the paid cycle still has time on it, plus a day.
-     *
-     * The grace day is not generosity: Razorpay charges a renewal some hours after the
-     * cycle turns over, and without it a paying player is locked out every month in the
-     * gap between the old cycle ending and the new charge landing.
-     */
-    fun isActive(nowMillis: Long): Boolean = nowMillis < paidUntilMillis + GRACE_MILLIS
-
-    fun activeUntilMillis(): Long = paidUntilMillis + GRACE_MILLIS
-
-    companion object {
-        const val GRACE_MILLIS = 24L * 60L * 60L * 1000L
-    }
+    fun isActive(nowMillis: Long): Boolean = nowMillis < paidUntilMillis
 }
 
 /**
- * Who has paid, kept across restarts.
+ * Who has paid, and who says they are about to, kept across restarts.
  *
- * A subscription that a redeploy forgets is a subscription the player paid for twice, so
- * this writes every change to disk before it returns. The file is a line of JSON per
- * player, rewritten whole and moved into place, so a crash half way through a write leaves
- * the previous file rather than half of a new one.
+ * A subscription a redeploy forgets is a subscription the player paid for twice, so every
+ * change is written to disk before it returns. The file is a line of JSON per record,
+ * rewritten whole and moved into place, so a crash half way through a write leaves the
+ * previous file rather than half of a new one.
  *
  * [file] null keeps everything in memory, which is what the tests and a server with no
  * billing configured both want.
@@ -47,21 +30,13 @@ data class Entitlement(
 class Entitlements(private val file: File? = null) {
 
     private val byPlayer = ConcurrentHashMap<String, Entitlement>()
-
-    /** Which player a subscription belongs to, recorded when the subscription is created. */
-    private val playerOfSubscription = ConcurrentHashMap<String, String>()
+    private val claims = ConcurrentHashMap<String, Claim>()
 
     init {
         load()
     }
 
-    /** Remembers that [subscriptionId] was created for [playerId], before any payment. */
-    fun claimSubscription(subscriptionId: String, playerId: String) {
-        playerOfSubscription[subscriptionId] = playerId
-        save()
-    }
-
-    fun playerFor(subscriptionId: String): String? = playerOfSubscription[subscriptionId]
+    // ------------------------------------------------------------------- entitlements
 
     operator fun get(playerId: String): Entitlement? = byPlayer[playerId]
 
@@ -69,26 +44,46 @@ class Entitlements(private val file: File? = null) {
         byPlayer[playerId]?.isActive(nowMillis) ?: false
 
     /**
-     * Records what Razorpay says about a subscription.
+     * Adds [days] to a player's subscription.
      *
-     * Webhooks arrive out of order and more than once, so a later event must never shorten
-     * an entitlement: the longest paid-until wins. Without that, a `cancelled` event
-     * overtaking the `charged` event that paid for the cycle would take away a month the
-     * player had already bought.
+     * Paid time is added to whatever is left rather than replacing it, so somebody who
+     * pays early keeps the days they have already bought instead of losing them.
      */
-    fun apply(entitlement: Entitlement) {
-        byPlayer.compute(entitlement.playerId) { _, existing ->
-            if (existing == null || entitlement.paidUntilMillis >= existing.paidUntilMillis) {
-                entitlement
-            } else {
-                existing.copy(status = entitlement.status)
-            }
-        }
-        playerOfSubscription[entitlement.subscriptionId] = entitlement.playerId
+    fun grantDays(playerId: String, days: Int, nowMillis: Long): Entitlement {
+        val from = maxOf(nowMillis, byPlayer[playerId]?.paidUntilMillis ?: 0L)
+        val granted = Entitlement(playerId, from + days * DAY_MILLIS)
+        byPlayer[playerId] = granted
+        save()
+        return granted
+    }
+
+    /** Takes a subscription away. For the owner, when a payment turns out to be a lie. */
+    fun revoke(playerId: String) {
+        byPlayer.remove(playerId)
         save()
     }
 
     fun size(): Int = byPlayer.size
+
+    // ------------------------------------------------------------------------ claims
+
+    fun putClaim(claim: Claim) {
+        claims[claim.reference] = claim
+        save()
+    }
+
+    fun claim(reference: String): Claim? = claims[reference]
+
+    /** The most recent claim a player made, which is the one the app asks about. */
+    fun latestClaimFor(playerId: String): Claim? =
+        claims.values.filter { it.playerId == playerId }.maxByOrNull { it.createdAtMillis }
+
+    /** Everything waiting on the owner, oldest first: the approvals queue. */
+    fun submittedClaims(): List<Claim> =
+        claims.values.filter { it.state == ClaimState.SUBMITTED }.sortedBy { it.createdAtMillis }
+
+    fun recentClaims(limit: Int = 40): List<Claim> =
+        claims.values.sortedByDescending { it.createdAtMillis }.take(limit)
 
     // ------------------------------------------------------------------- persistence
 
@@ -100,16 +95,15 @@ class Entitlements(private val file: File? = null) {
         temporary.writeText(
             buildString {
                 for (e in byPlayer.values) {
-                    append(
-                        """{"player":${quote(e.playerId)},"subscription":""" +
-                            """${quote(e.subscriptionId)},"status":${quote(e.status)},""" +
-                            """"paidUntil":${e.paidUntilMillis}}"""
-                    )
+                    append("""{"player":${quote(e.playerId)},"paidUntil":${e.paidUntilMillis}}""")
                     append('\n')
                 }
-                for ((subscription, player) in playerOfSubscription) {
-                    if (byPlayer.containsKey(player)) continue
-                    append("""{"claim":${quote(subscription)},"player":${quote(player)}}""")
+                for (c in claims.values) {
+                    append(
+                        """{"claim":${quote(c.reference)},"player":${quote(c.playerId)},""" +
+                            """"state":${quote(c.state.name)},"at":${c.createdAtMillis},""" +
+                            """"utr":${quote(c.utr)},"note":${quote(c.note)}}"""
+                    )
                     append('\n')
                 }
             }
@@ -122,21 +116,23 @@ class Entitlements(private val file: File? = null) {
         if (!source.exists()) return
         for (line in source.readLines()) {
             if (line.isBlank()) continue
-            val claim = field(line, "claim")
             val player = field(line, "player") ?: continue
-            if (claim != null) {
-                playerOfSubscription[claim] = player
+            val reference = field(line, "claim")
+            if (reference != null) {
+                claims[reference] = Claim(
+                    reference = reference,
+                    playerId = player,
+                    state = runCatching {
+                        ClaimState.valueOf(field(line, "state").orEmpty())
+                    }.getOrDefault(ClaimState.AWAITING),
+                    createdAtMillis = number(line, "at") ?: 0L,
+                    utr = field(line, "utr").orEmpty(),
+                    note = field(line, "note").orEmpty()
+                )
                 continue
             }
-            val subscription = field(line, "subscription") ?: continue
             val paidUntil = number(line, "paidUntil") ?: continue
-            byPlayer[player] = Entitlement(
-                playerId = player,
-                subscriptionId = subscription,
-                status = field(line, "status") ?: "unknown",
-                paidUntilMillis = paidUntil
-            )
-            playerOfSubscription[subscription] = player
+            byPlayer[player] = Entitlement(player, paidUntil)
         }
     }
 
@@ -151,4 +147,8 @@ class Entitlements(private val file: File? = null) {
 
     private fun number(line: String, name: String): Long? =
         Regex(""""$name":(-?\d+)""").find(line)?.groupValues?.get(1)?.toLongOrNull()
+
+    companion object {
+        const val DAY_MILLIS = 24L * 60L * 60L * 1000L
+    }
 }
