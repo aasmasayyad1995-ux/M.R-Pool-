@@ -1,7 +1,10 @@
 # Render blueprint: https://render.com/docs/blueprint-spec
 #
-# In Render: New > Blueprint, pick this repository, leave "Blueprint Path" empty. Render
-# finds this file at the repo root, creates the service, and asks you for the secrets.
+# In Render: New > Blueprint, pick this repository, leave "Blueprint Path" empty.
+#
+# This is the free setup on purpose. It runs online play and costs nothing, and it leaves
+# subscriptions switched off — which is the safe state, because a free Render instance has
+# no persistent disk. See "Before you take money" at the bottom.
 services:
   - type: web
     name: mrpool-server
@@ -10,28 +13,37 @@ services:
     rootDir: server
     dockerfilePath: ./server/Dockerfile
     healthCheckPath: /health
-
-    # A disk needs a paid instance. That is not an upsell: Render's free instances have no
-    # persistent storage, so entitlements.jsonl would be wiped on every deploy and every
-    # subscriber would lose the month they paid for. Run free only while nobody is paying.
-    plan: starter
-    disk:
-      name: mrpool-data
-      mountPath: /data
-      sizeGB: 1
+    plan: free
 
     envVars:
-      - key: SUBSCRIPTION_STORE
-        value: /data/entitlements.jsonl
       - key: SUBSCRIPTION_DAYS
         value: "30"
       - key: UPI_PAYEE_NAME
         value: Mr. Pool
 
-      # Render asks for these when the blueprint is applied. They never enter the repo.
-      - key: UPI_ID
-        sync: false
-      - key: SUBSCRIPTION_PRICE
-        sync: false
-      - key: ADMIN_TOKEN
-        sync: false
+      # UPI_ID, SUBSCRIPTION_PRICE, ADMIN_TOKEN and SUBSCRIPTION_STORE are deliberately
+      # absent. Without them the server sells nothing: /billing/plan reports
+      # "configured": false and the app's Pro screen says subscriptions are unavailable.
+      # Nobody can be charged, so there is nothing to lose when the container is recycled.
+
+# ---------------------------------------------------------------------------------------
+# Before you take money
+#
+# A free instance has no persistent storage. Anything written to disk is wiped on every
+# deploy and whenever Render recycles the container — so a subscriber who paid would
+# silently lose the month they paid for.
+#
+# So on the day somebody actually pays, do all of this, not some of it:
+#
+#   1. In the Render dashboard, change this service's instance type from Free to Starter
+#      (the cheapest one that can have a disk).
+#   2. Add a disk: name it anything, mount path /data, 1 GB.
+#   3. Add these four environment variables:
+#        SUBSCRIPTION_STORE = /data/entitlements.jsonl
+#        UPI_ID             = your UPI id
+#        SUBSCRIPTION_PRICE = 99
+#        ADMIN_TOKEN        = a long random string (openssl rand -hex 24)
+#   4. Approve a test payment, redeploy, and check the test player is STILL subscribed.
+#      If that flips back to false, the disk is not working — fix it before going further.
+#
+# server/fly.toml is the same thing on Fly.io, which works out cheaper.
