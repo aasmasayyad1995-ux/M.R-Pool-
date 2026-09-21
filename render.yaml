@@ -9,9 +9,12 @@ services:
   - type: web
     name: mrpool-server
     runtime: docker
-    # rootDir is the build context; dockerfilePath is relative to the repo root.
-    rootDir: server
+    # Both paths are relative to the repo root. rootDir is deliberately not used: with it
+    # set, whether dockerfilePath is read from the repo root or from rootDir is ambiguous,
+    # and getting it wrong fails the deploy in ten seconds with "Dockerfile not found".
+    # dockerContext is what the Dockerfile's `COPY . .` actually copies.
     dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
     healthCheckPath: /health
     plan: free
 
