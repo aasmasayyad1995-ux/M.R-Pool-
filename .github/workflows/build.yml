@@ -36,21 +36,11 @@ jobs:
       #
       # matchServerUrl points the app at the deployed match server, which is what makes
       # "Play Online" work in the published build. It is a public address, not a secret.
-      #
-      # billingServerUrl points at the same deployment. That does not switch
-      # subscriptions on: the server decides, and it refuses to sell until it has both a
-      # UPI id and somewhere on disk to remember who paid. Until then the Pro screen says
-      # subscriptions are unavailable and nobody can be charged.
-      #
-      # Wiring it now means the day that server is given a disk and the UPI settings, Pro
-      # starts working on phones that already have this APK — no reinstall, no waiting on
-      # a new build to reach anyone.
       - name: Build the APK
         run: |
           ./gradlew assembleDebug \
             -PbuildId=${{ github.sha }} \
             -PmatchServerUrl=wss://mrpool-server.onrender.com/ws \
-            -PbillingServerUrl=https://mrpool-server.onrender.com \
             --stacktrace
 
       - name: Attach the APK to this run
@@ -81,10 +71,8 @@ jobs:
           on a free instance that sleeps when nobody is using it, so the first connect
           after a quiet spell can take up to a minute to wake it.
 
-          The Mr. Pool Pro subscription is wired to the same server, but that server
-          refuses to sell until it has a UPI id and a disk to remember subscribers on.
-          Until then the Pro screen says subscriptions are unavailable, and nothing here
-          can charge you."
+          Nothing in this app costs money. Coins are won by playing and cannot be
+          bought."
           if gh release view latest >/dev/null 2>&1; then
             gh release upload latest "$APK" --clobber
             gh release edit latest --notes "$NOTES"

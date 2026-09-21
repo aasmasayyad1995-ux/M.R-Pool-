@@ -1,8 +1,5 @@
 package com.mrpool.eightball
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.Toast
@@ -18,20 +15,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.core.view.WindowCompat
 import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.audio.GameAudio
-import com.mrpool.eightball.billing.BillingConfig
-import com.mrpool.eightball.billing.ClaimState
-import com.mrpool.eightball.billing.PaymentInstructions
-import com.mrpool.eightball.billing.SubscriptionClient
-import com.mrpool.eightball.billing.SubscriptionPlan
 import com.mrpool.eightball.audio.Sound
 import com.mrpool.eightball.data.PlayerProfile
 import com.mrpool.eightball.data.ProfileStore
@@ -53,7 +39,6 @@ import com.mrpool.eightball.ui.OnlineScreen
 import com.mrpool.eightball.ui.MrPoolTheme
 import com.mrpool.eightball.ui.RobotSetupScreen
 import com.mrpool.eightball.ui.SplashScreen
-import com.mrpool.eightball.ui.SubscriptionScreen
 import com.mrpool.eightball.ui.TableShopScreen
 import com.mrpool.eightball.ui.WalletScreen
 import java.util.concurrent.TimeUnit
@@ -80,9 +65,6 @@ private sealed interface Screen {
     data object Cues : Screen
     data object Tables : Screen
     data object Wallet : Screen
-
-    /** The subscription: what Pro is, and how to start or stop paying for it. */
-    data object Subscription : Screen
     data object HowToPlay : Screen
     data object RobotSetup : Screen
     data class Match(val difficulty: RobotDifficulty?, val prize: Int) : Screen
@@ -115,53 +97,6 @@ private fun MrPoolApp() {
 
     var matchmaking by remember { mutableStateOf<Matchmaking>(Matchmaking.Idle) }
 
-    // ------------------------------------------------------------------- subscription
-
-    val scope = rememberCoroutineScope()
-    val billing = remember {
-        if (BillingConfig.isConfigured) SubscriptionClient() else null
-    }
-    var plan by remember { mutableStateOf(SubscriptionPlan.UNAVAILABLE) }
-    var payment by remember { mutableStateOf<PaymentInstructions?>(null) }
-    var claimState by remember { mutableStateOf<ClaimState?>(null) }
-    var billingBusy by remember { mutableStateOf(false) }
-    var billingNotice by remember { mutableStateOf<String?>(null) }
-
-    /** Asks the server what this install has paid for, and caches the answer. */
-    suspend fun refreshSubscription() {
-        val client = billing ?: return
-        val subscription = client.status(store.deviceId)
-        claimState = subscription.claimState
-        store.applySubscription(subscription)
-    }
-
-    LaunchedEffect(billing) {
-        if (billing == null) return@LaunchedEffect
-        plan = billing.plan()
-        refreshSubscription()
-    }
-
-    // A subscription ends at a moment, not on an event, so nothing would notice it lapse
-    // under a player who left the app open. This is the only thing that looks.
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(60_000L)
-            store.refreshSubscriptionState()
-        }
-    }
-
-    // Paying happens in the browser, so the app is in the background when the money moves.
-    // Coming back is the moment to ask the server again.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, billing) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && billing != null) {
-                scope.launch { refreshSubscription() }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     // One socket does the matchmaking and then becomes the match's transport, so there is a
     // single thing to open, to watch and to close.
@@ -188,7 +123,7 @@ private fun MrPoolApp() {
         if (!OnlineConfig.isConfigured) return null
         val existing = connection
         if (existing != null) return existing
-        val fresh = MatchConnection(OnlineConfig.serverUrl, profile.displayName, ::onMatchmaking)
+        val fresh = MatchConnection(OnlineConfig.serverUrl, profile.playerName, ::onMatchmaking)
         connection = fresh
         fresh.connect()
         return fresh
@@ -224,7 +159,6 @@ private fun MrPoolApp() {
             onChooseTable = { go(Screen.Tables) },
             onHowToPlay = { go(Screen.HowToPlay) },
             onWallet = { go(Screen.Wallet) },
-            onSubscription = { go(Screen.Subscription) },
             onToggleSound = {
                 // The store flips its own value and audio follows profile.soundEnabled,
                 // so there is one writer and nothing to get out of step with.
@@ -244,10 +178,6 @@ private fun MrPoolApp() {
                     is PurchaseResult.NotEnoughCoins ->
                         toast("You need ${result.missing} more coins")
                     PurchaseResult.AlreadyOwned -> store.equipCue(cue)
-                    PurchaseResult.ProOnly -> {
-                        toast("${cue.name} comes with Mr. Pool Pro")
-                        go(Screen.Subscription)
-                    }
                 }
             },
             onEquip = { cue ->
@@ -269,10 +199,6 @@ private fun MrPoolApp() {
                     is PurchaseResult.NotEnoughCoins ->
                         toast("You need ${result.missing} more coins")
                     PurchaseResult.AlreadyOwned -> store.equipTable(table)
-                    PurchaseResult.ProOnly -> {
-                        toast("${table.name} comes with Mr. Pool Pro")
-                        go(Screen.Subscription)
-                    }
                 }
             },
             onEquip = { table ->
@@ -280,71 +206,6 @@ private fun MrPoolApp() {
                 audio.play(Sound.TAP, 0.6f)
                 toast("Now playing on ${table.name}")
             }
-        )
-
-        Screen.Subscription -> SubscriptionScreen(
-            profile = profile,
-            plan = plan,
-            payment = payment,
-            claimState = claimState,
-            busy = billingBusy,
-            notice = billingNotice,
-            onStartPayment = {
-                billingNotice = null
-                billingBusy = true
-                scope.launch {
-                    payment = billing?.paymentInstructions(store.deviceId)
-                    billingBusy = false
-                    if (payment == null) {
-                        billingNotice = "Could not reach the subscription server."
-                    }
-                }
-            },
-            onOpenUpiApp = { link ->
-                // A upi: link is handled by whichever UPI app the phone has. Nothing about
-                // the payment passes through this game.
-                try {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(link))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                } catch (notInstalled: ActivityNotFoundException) {
-                    billingNotice = "No UPI app found. Pay ${plan.price} to ${plan.upiId} " +
-                        "by hand, with the reference in the note."
-                }
-            },
-            onSubmitClaim = { utr ->
-                val reference = payment?.reference
-                if (reference == null) {
-                    billingNotice = "Start the payment first."
-                } else {
-                    billingBusy = true
-                    scope.launch {
-                        val sent = billing?.submitClaim(store.deviceId, reference, utr) ?: false
-                        if (sent) refreshSubscription()
-                        billingBusy = false
-                        billingNotice = if (sent) {
-                            "Sent. Your payment will be checked by hand — come back shortly."
-                        } else {
-                            "Could not send that just now. Try again in a moment."
-                        }
-                    }
-                }
-            },
-            onRefresh = {
-                billingNotice = null
-                billingBusy = true
-                scope.launch {
-                    refreshSubscription()
-                    billingBusy = false
-                    billingNotice = when {
-                        store.current.pro -> "Subscription active."
-                        claimState == ClaimState.SUBMITTED -> "Still waiting to be checked."
-                        else -> "No payment found yet."
-                    }
-                }
-            },
-            onBack = { go(Screen.Lobby) }
         )
 
         Screen.Wallet -> WalletScreen(
@@ -364,7 +225,7 @@ private fun MrPoolApp() {
 
         Screen.Online -> OnlineScreen(
             coins = profile.coins,
-            playerName = profile.displayName,
+            playerName = profile.playerName,
             state = matchmaking,
             configured = OnlineConfig.isConfigured,
             setupHint = OnlineConfig.SETUP_HINT,
@@ -386,11 +247,11 @@ private fun MrPoolApp() {
                 OnlineMatch(
                     session = GameSession(
                         PlayerState(
-                            if (room.seat == Seat.ONE) profile.displayName else room.opponentName,
+                            if (room.seat == Seat.ONE) profile.playerName else room.opponentName,
                             isRobot = false
                         ),
                         PlayerState(
-                            if (room.seat == Seat.ONE) room.opponentName else profile.displayName,
+                            if (room.seat == Seat.ONE) room.opponentName else profile.playerName,
                             isRobot = false
                         ),
                         ClothProperties.TOURNAMENT,

@@ -1,7 +1,7 @@
 package com.mrpool.eightball.data
 
 /**
- * One of the twelve cues in the shop, or one of the two that come with Pro.
+ * One of the twelve cues in the shop.
  *
  * The stats are not decoration: [power] scales the top of the power bar, [aim] scales the
  * length of the guide line and [spin] caps how much english the player can dial in.
@@ -20,15 +20,7 @@ data class CueStick(
     val shaftColor: Long,
     /** Ring and inlay colour as 0xAARRGGBB. */
     val accentColor: Long,
-    val tagline: String,
-    /**
-     * A cue that comes with the subscription and cannot be bought with coins.
-     *
-     * Its stats sit inside the range the shop already sells, so Pro buys a look, not a
-     * better chance of winning. A paying player who meets a free one across an online
-     * table must not be holding a cue the free player could never have.
-     */
-    val proOnly: Boolean = false
+    val tagline: String
 ) {
     /** Multiplier applied to the maximum shot speed. */
     val power: Float get() = 1f + (powerStars - 1) * 0.035f
@@ -39,12 +31,10 @@ data class CueStick(
     /** Maximum english the player can apply, 0..1. */
     val spin: Float get() = 0.45f + (spinStars - 1) * 0.1375f
 
-    /** Free to everyone. A Pro cue has no price because it is not for sale, not because
-     * it is free. */
-    val isFree: Boolean get() = price == 0 && !proOnly
+    val isFree: Boolean get() = price == 0
 
     companion object {
-        /** The twelve cues in the shop, cheapest first. The starter is free; the rest begin at 200. */
+        /** The twelve cues, cheapest first. The starter cue is free; the rest begin at 200. */
         val ALL: List<CueStick> = listOf(
             CueStick(
                 id = 0, name = "House Cue", price = 0,
@@ -132,34 +122,7 @@ data class CueStick(
             )
         )
 
-        /**
-         * The two cues only a subscriber holds.
-         *
-         * Deliberately not in [ALL]: the shop sells twelve cues and these are not for
-         * sale, so listing them among things with prices would be a lie.
-         */
-        val PRO_ONLY: List<CueStick> = listOf(
-            CueStick(
-                id = 100, name = "Infinity Core", price = 0,
-                powerStars = 5, aimStars = 5, spinStars = 5,
-                buttColor = 0xFF120A2Au.toLong(), shaftColor = 0xFFE8E2FFu.toLong(),
-                accentColor = 0xFF8C6BFFu.toLong(),
-                tagline = "The studio cue. Subscribers only.",
-                proOnly = true
-            ),
-            CueStick(
-                id = 101, name = "Midnight Chrome", price = 0,
-                powerStars = 5, aimStars = 5, spinStars = 5,
-                buttColor = 0xFF0B0D10u.toLong(), shaftColor = 0xFFDDE4EAu.toLong(),
-                accentColor = 0xFF00E5D0u.toLong(),
-                tagline = "Brushed chrome and a cold green flash.",
-                proOnly = true
-            )
-        )
 
-        /** Everything that exists, for looking up whatever the player has equipped. */
-        val EVERY: List<CueStick> = ALL + PRO_ONLY
-
-        fun byId(id: Int): CueStick = EVERY.firstOrNull { it.id == id } ?: ALL.first()
+        fun byId(id: Int): CueStick = ALL.firstOrNull { it.id == id } ?: ALL.first()
     }
 }

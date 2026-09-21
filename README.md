@@ -21,7 +21,6 @@ tap anywhere skips to the lobby.
 | **Play with Friend** | Two players on one device. No entry fee. |
 | **Choose Cue Stick** | 12 cues. The house cue is free, the rest start at **200 coins**. |
 | **Table Selection** | 20 tables. The local club is free, the rest start at **1,000 coins**. |
-| **Mr. Pool Pro** | An optional monthly subscription, paid by UPI: double prize money, a bigger daily bonus, subscriber cosmetics. |
 | **Coins & Rewards** | Balance, daily bonus, and exactly what every match pays. |
 | **How to Play Pool** | Rules, controls, spin, position play and safety play. |
 
@@ -42,10 +41,9 @@ whether it plays safeties and whether it uses spin — see `ai/RobotDifficulty.k
 
 ## Money
 
-Coins are in-game currency. They are **won, never bought**, and there is no way to turn
-them back into money — no cash-out, no withdrawal, no entry fee. The only real money in
-this app is the optional subscription below, and it buys no coins: it raises what playing
-pays, and the playing still has to happen.
+Coins are in-game currency only. They are **won, never bought**: nothing in this app costs
+real money, there is no payment code anywhere in it, and there is no way to turn coins back
+into money.
 
 * **Every match is free to play**, against the robot and against a friend alike.
 * What a win pays depends only on the robot you beat: **25** for the beginner, **50** for
@@ -53,63 +51,6 @@ pays, and the playing still has to happen.
 * The table is never a cost of admission — it changes how the cloth runs and how the game
   looks, nothing else.
 * Daily bonus of 50 coins, worth one win against the medium robot.
-
-## Mr. Pool Pro
-
-An optional monthly subscription, paid by **UPI straight to the owner** — no payment
-gateway, no commission. The game is complete without it, and Pro buys no advantage at the
-table.
-
-| What you get | |
-| --- | --- |
-| Bigger daily bonus | 250 coins a day instead of 50 |
-| Double prize money | 50 / 100 / 200 for beating the three robots instead of 25 / 50 / 100 |
-| Subscriber cosmetics | Two cues and two tables that are not for sale at any price |
-| A star by your name | Online opponents see it; it does nothing else |
-
-**The shop is untouched.** All 12 cues and all 20 tables are still earned with coins, by
-subscribers and everyone else alike — a subscriber and a free player who have played the
-same amount hold exactly the same cues. A test enforces that, and the Pro cosmetics' stats
-sit inside the range the shop already sells, so nothing across an online table was bought
-with money.
-
-### How paying works, and what it cannot do
-
-There is no gateway, so **nothing tells the server that money arrived** — UPI sends no
-callback to anyone but the bank. The flow is honest about that:
-
-1. The player taps Subscribe and gets a short reference, `MRP-K7J2Q`, and a `upi://` link.
-2. The link opens GPay, PhonePe or Paytm with the reference already in the note. The money
-   goes straight to the owner. The game never sees a UPI id, a PIN or a card.
-3. The player taps **I have paid**. This grants nothing — it queues the payment.
-4. The owner opens the approvals page, matches the reference against their own bank
-   statement, and presses Approve. **That is the only thing that turns a subscription on.**
-
-Two consequences, stated plainly rather than buried:
-
-* **It is not instant.** A person has to look.
-* **Nothing renews by itself.** UPI AutoPay needs a payment provider. Each month the player
-  pays again.
-
-Other deliberate limits:
-
-* **Coins already spent stay spent.** A subscription lends the cosmetics; when it ends they
-  go back, and an equipped Pro cue quietly falls back to the house cue rather than
-  following the player to a table they cannot use it on.
-* **The app cannot grant itself Pro.** The entitlement lives on the server, and the server
-  only writes it when the owner approves.
-* **The approvals page is switched off without a password.** A blank `ADMIN_TOKEN`
-  disables subscriptions entirely rather than leaving that page open to anyone who finds
-  the URL.
-* **A server with nowhere to remember subscribers refuses to sell.** A blank
-  `SUBSCRIPTION_STORE` disables subscriptions too, because taking somebody's money and
-  then forgetting they paid is worse than not taking it.
-
-The published APK points at the deployed server for both, but the server refuses to sell
-subscriptions until it has a UPI id and a disk to remember subscribers on — so online play
-works and the Pro screen says subscriptions are unavailable. Turning them on, and what is
-still missing before this should carry real money, is in
-[`server/README.md`](server/README.md).
 
 ## Rules implemented
 
@@ -171,26 +112,21 @@ place, the app, and the server never needs redeploying when they change.
 ```bash
 cd server
 ./gradlew run                 # listens on $PORT, or 8080
-./gradlew test                # 42 tests: the hub, two clients over real WebSockets, and billing
+./gradlew test                # 16 tests, including two clients over real WebSockets
 ```
 
 Deploy it anywhere that takes a Dockerfile. `render.yaml` and `server/fly.toml` are
 checked in, so on either host it is a form to fill rather than a file to write — see
-[`server/README.md`](server/README.md) for the click-by-click. The blueprint is the free
-setup with subscriptions switched off, which needs no card and no disk: online play keeps
-no state, so a free tier genuinely suits it. Subscriptions are the part that needs a disk,
-and turning them on is a deliberate step for the day somebody actually pays. Then build
-the app pointing at it:
+[`server/README.md`](server/README.md) for the click-by-click. It keeps no state between
+matches, so a free tier genuinely suits it: no card, no disk. Then build the app pointing
+at it:
 
 ```bash
-./gradlew assembleDebug \
-  -PmatchServerUrl=wss://your-server.example.com/ws \
-  -PbillingServerUrl=https://your-server.example.com
+./gradlew assembleDebug -PmatchServerUrl=wss://your-server.example.com/ws
 ```
 
-Leave either property out and that feature is simply switched off; the rest of the game is
-unaffected and the screen in question says what is missing. Subscriptions also need a UPI
-id and an admin password on the server — see [`server/README.md`](server/README.md).
+Leave that property out and online play is simply switched off; the rest of the game is
+unaffected and the online screen says what is missing.
 
 ## Sound
 
@@ -227,8 +163,7 @@ as you pull, and the spin pad moves the tip off centre.
 
 Every push to `main` publishes the APK to the
 [latest release](../../releases/latest/download/app-debug.apk). That build has online play
-switched on, pointed at the deployed match server; the subscription stays switched off, so
-nothing published here can charge anyone. Open that link on an Android
+switched on, pointed at the deployed match server. Open that link on an Android
 phone, tap the downloaded file, and allow installation from unknown sources. No GitHub login
 and no unzipping.
 

@@ -2,9 +2,8 @@
 #
 # In Render: New > Blueprint, pick this repository, leave "Blueprint Path" empty.
 #
-# This is the free setup on purpose. It runs online play and costs nothing, and it leaves
-# subscriptions switched off — which is the safe state, because a free Render instance has
-# no persistent disk. See "Before you take money" at the bottom.
+# The free tier suits this: the match server keeps no state between matches, so there is
+# nothing a recycled container can lose.
 services:
   - type: web
     name: mrpool-server
@@ -17,36 +16,3 @@ services:
     dockerContext: ./server
     healthCheckPath: /health
     plan: free
-
-    envVars:
-      - key: SUBSCRIPTION_DAYS
-        value: "30"
-      - key: UPI_PAYEE_NAME
-        value: Mr. Pool
-
-      # UPI_ID, SUBSCRIPTION_PRICE, ADMIN_TOKEN and SUBSCRIPTION_STORE are deliberately
-      # absent. Without them the server sells nothing: /billing/plan reports
-      # "configured": false and the app's Pro screen says subscriptions are unavailable.
-      # Nobody can be charged, so there is nothing to lose when the container is recycled.
-
-# ---------------------------------------------------------------------------------------
-# Before you take money
-#
-# A free instance has no persistent storage. Anything written to disk is wiped on every
-# deploy and whenever Render recycles the container — so a subscriber who paid would
-# silently lose the month they paid for.
-#
-# So on the day somebody actually pays, do all of this, not some of it:
-#
-#   1. In the Render dashboard, change this service's instance type from Free to Starter
-#      (the cheapest one that can have a disk).
-#   2. Add a disk: name it anything, mount path /data, 1 GB.
-#   3. Add these four environment variables:
-#        SUBSCRIPTION_STORE = /data/entitlements.jsonl
-#        UPI_ID             = your UPI id
-#        SUBSCRIPTION_PRICE = 99
-#        ADMIN_TOKEN        = a long random string (openssl rand -hex 24)
-#   4. Approve a test payment, redeploy, and check the test player is STILL subscribed.
-#      If that flips back to false, the disk is not working — fix it before going further.
-#
-# server/fly.toml is the same thing on Fly.io, which works out cheaper.

@@ -23,15 +23,6 @@ android {
             "\"${project.findProperty("matchServerUrl") ?: ""}\""
         )
 
-        // Where the subscription server lives. The same deployment as the match server,
-        // over https rather than wss. Empty simply disables subscriptions, and the Pro
-        // screen then explains what is missing instead of failing at a dead socket.
-        buildConfigField(
-            "String",
-            "BILLING_SERVER_URL",
-            "\"${project.findProperty("billingServerUrl") ?: ""}\""
-        )
-
         // Shown in the corner of the lobby. CI passes the commit it built, so a screenshot
         // always says which build it came from — without that, a phone quietly running an
         // older install looks exactly like a fix that did not work.
