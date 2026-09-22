@@ -67,6 +67,8 @@ fun GameScreen(
     /** The two players by name, in seat order. Shown on the scoreboard as given. */
     playerName: String,
     opponentName: String,
+    /** Changes when this phone's player picture changes, so the plate reloads it. */
+    avatarStamp: Long,
     audio: SoundPlayer?,
     online: OnlineMatch? = null,
     soundEnabled: Boolean,
@@ -109,6 +111,7 @@ fun GameScreen(
         MatchHud(
             state = state,
             table = table,
+            avatarStamp = avatarStamp,
             onExit = onExit
         )
 
@@ -408,6 +411,8 @@ private fun plateName(name: String, isLocal: Boolean): String =
 private fun MatchHud(
     state: GameUiState,
     table: PoolTableSkin,
+    /** This phone's player picture, shown on whichever plate is theirs. */
+    avatarStamp: Long,
     onExit: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
@@ -424,6 +429,7 @@ private fun MatchHud(
                 group = state.playerOneGroup,
                 remaining = state.playerOneRemaining,
                 active = state.currentSeat == Seat.ONE && state.phase != GamePhase.GAME_OVER,
+                avatarStamp = avatarStamp.takeIf { state.localSeat != Seat.TWO },
                 modifier = Modifier.padding(start = 10.dp)
             )
             Column(
@@ -446,6 +452,7 @@ private fun MatchHud(
                 group = state.playerTwoGroup,
                 remaining = state.playerTwoRemaining,
                 active = state.currentSeat == Seat.TWO && state.phase != GamePhase.GAME_OVER,
+                avatarStamp = avatarStamp.takeIf { state.localSeat == Seat.TWO },
                 modifier = Modifier.padding(end = 4.dp)
             )
         }
@@ -493,11 +500,19 @@ private fun PlayerPlate(
     group: BallGroup?,
     remaining: Int,
     active: Boolean,
+    /**
+     * The picture to show, or null for the other player.
+     *
+     * Only this phone's player has one. A picture never crosses to the opponent's device,
+     * so theirs is the plain eight ball — showing a stand-in as if it were them would be
+     * worse than showing nothing of them at all.
+     */
+    avatarStamp: Long? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .width(112.dp)
+            .width(128.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (active) Gold.copy(alpha = 0.16f) else Color(0x99121A1C))
             .border(
@@ -507,12 +522,22 @@ private fun PlayerPlate(
             )
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        Text(
-            name,
-            color = if (active) Gold else Chalk,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (avatarStamp != null) {
+                Avatar(
+                    stamp = avatarStamp,
+                    size = 26.dp,
+                    ring = if (active) Gold else null
+                )
+            }
+            Text(
+                name,
+                color = if (active) Gold else Chalk,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                modifier = Modifier.padding(start = if (avatarStamp != null) 7.dp else 0.dp)
+            )
+        }
         Text(
             when (group) {
                 BallGroup.SOLIDS -> "Solids · $remaining left"

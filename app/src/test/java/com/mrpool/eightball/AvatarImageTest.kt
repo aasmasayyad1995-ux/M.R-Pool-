@@ -134,6 +134,23 @@ class ProfileDetailsTest {
     }
 
     @Test
+    fun `a name being typed is never replaced mid word`() {
+        // The screen only saves what is not blank, so the fallback cannot arrive while
+        // somebody is still deleting the old name to type a new one.
+        val profile = com.mrpool.eightball.data.PlayerProfile(playerName = "Player")
+        val typing = listOf("Playe", "Play", "Pla", "Pl", "P", "")
+        for (partial in typing) {
+            if (partial.isBlank()) continue
+            assertEquals(partial, profile.withName(partial).playerName)
+        }
+        assertEquals(
+            "the stored name only falls back when a blank one is actually saved",
+            com.mrpool.eightball.data.PlayerProfile.DEFAULT_NAME,
+            profile.withName("").playerName
+        )
+    }
+
+    @Test
     fun `renaming changes nothing else`() {
         val before = com.mrpool.eightball.data.PlayerProfile(
             coins = 900, wins = 4, avatarStamp = 17L
