@@ -50,7 +50,11 @@ fun ProfileScreen(
     onNameChange: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    var name by remember(profile.playerName) { mutableStateOf(profile.playerName) }
+    // Not keyed on the profile. Keying it there meant that clearing the field wrote a
+    // blank name, the store turned that blank into "Player", and the new value came
+    // straight back into the box — so the old name could never be deleted to type a new
+    // one. What is typed stays typed; the fallback belongs at the end, not mid-word.
+    var name by remember { mutableStateOf(profile.playerName) }
 
     PoolBackground {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -106,16 +110,23 @@ fun ProfileScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = {
-                        name = it.take(16)
-                        onNameChange(name)
+                        name = it.take(PlayerProfile.MAX_NAME)
+                        // An empty box is a player mid-edit, not a player called nothing,
+                        // so it is not saved until there is something to save.
+                        if (name.isNotBlank()) onNameChange(name)
                     },
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     singleLine = true,
                     label = { Text("Your name") },
+                    isError = name.isBlank(),
                     supportingText = {
                         Text(
-                            "This is what an online opponent sees. Your picture stays on " +
-                                "this phone.",
+                            if (name.isBlank()) {
+                                "Type a name — ${profile.playerName} is kept until you do."
+                            } else {
+                                "This is what an online opponent sees. Your picture stays " +
+                                    "on this phone."
+                            },
                             style = MaterialTheme.typography.labelSmall
                         )
                     }

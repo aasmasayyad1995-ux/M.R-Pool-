@@ -37,16 +37,37 @@ class AvatarStore(context: Context) {
      */
     fun save(source: Uri): Boolean {
         val prepared = runCatching { decode(source) }.getOrNull() ?: return false
-        return runCatching {
-            val temporary = File(appContext.filesDir, "$FILE_NAME.tmp")
-            temporary.outputStream().use { prepared.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            // Moved into place so a failure part way through leaves the old picture, not
-            // half of a new one.
-            temporary.renameTo(file)
-        }.getOrElse {
-            Log.w(TAG, "could not write the avatar", it)
+        val temporary = File(appContext.filesDir, "$FILE_NAME.tmp")
+        return try {
+            // Written beside the real file and moved into place, so a failure part way
+            // through leaves the old picture rather than half of a new one.
+            val written = temporary.outputStream().use {
+                prepared.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+            // compress returns false rather than throwing. Taking that as success wrote
+            // nothing, reported a picture, and left the screen showing the plain eight
+            // ball with no hint as to why.
+            if (!written || temporary.length() <= 0L) {
+                Log.w(TAG, "the picture could not be encoded")
+                return false
+            }
+            // renameTo will not replace an existing file on every filesystem, and a
+            // silent false there means the second picture a player chooses never appears.
+            // Deleting first makes the move the same on all of them.
+            file.delete()
+            if (temporary.renameTo(file)) return true
+
+            // Some devices still refuse the move. Copying is slower and always works, and
+            // a picture that arrives slowly beats one that never arrives.
+            temporary.copyTo(file, overwrite = true)
+            file.length() > 0L
+        } catch (t: Throwable) {
+            Log.w(TAG, "could not write the avatar", t)
             false
-        }.also { prepared.recycle() }
+        } finally {
+            temporary.delete()
+            prepared.recycle()
+        }
     }
 
     fun clear() {
