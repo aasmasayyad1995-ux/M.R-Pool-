@@ -17,12 +17,31 @@ tap anywhere skips to the lobby.
 
 | Option | What it does |
 | --- | --- |
+| **Profile** | Your picture, your name and your record. The picture is picked from the phone and never leaves it. |
 | **Play with Robot** | Pick Beginner, Medium or Hard. Free to play, and a win pays 25, 50 or 100 coins. |
 | **Play with Friend** | Two players on one device. No entry fee. |
 | **Choose Cue Stick** | 12 cues. The house cue is free, the rest start at **200 coins**. |
 | **Table Selection** | 20 tables. The local club is free, the rest start at **1,000 coins**. |
 | **Coins & Rewards** | Balance, daily bonus, and exactly what every match pays. |
 | **How to Play Pool** | Rules, controls, spin, position play and safety play. |
+
+## The profile
+
+A picture and a name, both kept on the phone.
+
+The picture comes through Android's system photo picker, which hands the app a read grant
+on the one photo chosen and asks for no permission at all — the app never gets to see the
+rest of the gallery. It is then copied in rather than remembered by URI, because a grant
+can lapse and the owner can delete the photo, either of which would leave a hole where the
+avatar was. What is stored is a 256 pixel square: centre cropped, turned the right way up
+from its EXIF orientation, a few kilobytes.
+
+A phone photo can be forty megapixels, so it is decoded at a sample size that lands just
+above the avatar size rather than in full, and the work happens off the thread that draws.
+
+**The picture never leaves the phone.** An online opponent sees the name and nothing else.
+Showing arbitrary pictures to strangers needs moderation behind it, and that is a different
+thing to build.
 
 ## The robot
 

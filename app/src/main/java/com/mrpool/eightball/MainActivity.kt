@@ -4,6 +4,9 @@ import android.os.Bundle
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
@@ -14,7 +17,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.core.view.WindowCompat
 import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.audio.GameAudio
@@ -37,6 +44,7 @@ import com.mrpool.eightball.ui.HowToPlayScreen
 import com.mrpool.eightball.ui.LobbyScreen
 import com.mrpool.eightball.ui.OnlineScreen
 import com.mrpool.eightball.ui.MrPoolTheme
+import com.mrpool.eightball.ui.ProfileScreen
 import com.mrpool.eightball.ui.RobotSetupScreen
 import com.mrpool.eightball.ui.SplashScreen
 import com.mrpool.eightball.ui.TableShopScreen
@@ -65,6 +73,9 @@ private sealed interface Screen {
     data object Cues : Screen
     data object Tables : Screen
     data object Wallet : Screen
+
+    /** The player: their picture, their name and their record. */
+    data object Profile : Screen
     data object HowToPlay : Screen
     data object RobotSetup : Screen
     data class Match(val difficulty: RobotDifficulty?, val prize: Int) : Screen
@@ -107,6 +118,21 @@ private fun MrPoolApp() {
 
     fun toast(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    // The system photo picker. It hands back a read grant on one picture and asks for no
+    // permission at all, so the app never gets to see the rest of the gallery.
+    val scope = rememberCoroutineScope()
+    val pickPicture = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { picked ->
+        if (picked == null) return@rememberLauncherForActivityResult
+        // A phone photo can be forty megapixels. Reading and scaling one takes long
+        // enough that doing it here, on the thread that draws, would freeze the app.
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) { store.setAvatar(picked) }
+            if (!saved) toast("That picture could not be read")
+        }
     }
 
     /** Matchmaking results all land here: on success, straight into the match. */
@@ -159,6 +185,7 @@ private fun MrPoolApp() {
             onChooseTable = { go(Screen.Tables) },
             onHowToPlay = { go(Screen.HowToPlay) },
             onWallet = { go(Screen.Wallet) },
+            onProfile = { go(Screen.Profile) },
             onToggleSound = {
                 // The store flips its own value and audio follows profile.soundEnabled,
                 // so there is one writer and nothing to get out of step with.
@@ -206,6 +233,18 @@ private fun MrPoolApp() {
                 audio.play(Sound.TAP, 0.6f)
                 toast("Now playing on ${table.name}")
             }
+        )
+
+        Screen.Profile -> ProfileScreen(
+            profile = profile,
+            onPickPicture = {
+                pickPicture.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onRemovePicture = { store.clearAvatar() },
+            onNameChange = { store.setPlayerName(it) },
+            onBack = { go(Screen.Lobby) }
         )
 
         Screen.Wallet -> WalletScreen(

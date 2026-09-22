@@ -2,6 +2,8 @@ package com.mrpool.eightball.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.net.Uri
 import com.mrpool.eightball.ai.RobotDifficulty
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +26,9 @@ class ProfileStore(context: Context) {
 
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** The profile picture, which lives in a file rather than in the preferences. */
+    val avatars = AvatarStore(context)
 
     private val _profile = MutableStateFlow(load())
     val profile: StateFlow<PlayerProfile> = _profile.asStateFlow()
@@ -121,10 +126,34 @@ class ProfileStore(context: Context) {
 
     /** The name the opponent sees online. */
     fun setPlayerName(name: String) {
-        val trimmed = name.trim().take(16).ifBlank { "Player" }
-        if (current.playerName == trimmed) return
-        update(current.copy(playerName = trimmed))
+        val renamed = current.withName(name)
+        if (renamed.playerName == current.playerName) return
+        update(renamed)
     }
+
+    // -------------------------------------------------------------- profile picture
+
+    /**
+     * Copies the picked photo in as the profile picture.
+     *
+     * Returns false when the photo could not be read, in which case whatever was there
+     * before is still there — a picture that fails to load should not wipe the one the
+     * player already had.
+     */
+    fun setAvatar(source: Uri): Boolean {
+        if (!avatars.save(source)) return false
+        update(current.copy(avatarStamp = System.currentTimeMillis()))
+        return true
+    }
+
+    /** Goes back to the plain eight ball. */
+    fun clearAvatar() {
+        avatars.clear()
+        update(current.copy(avatarStamp = System.currentTimeMillis()))
+    }
+
+    /** The saved picture, or null when the player has not set one. */
+    fun avatar(): Bitmap? = avatars.load()
 
     /** Turns the game's sound on or off, and remembers the choice. */
     fun setSoundEnabled(enabled: Boolean) {
@@ -186,6 +215,7 @@ class ProfileStore(context: Context) {
             .putLong(KEY_BONUS_DAY, p.lastBonusDay)
             .putBoolean(KEY_SOUND, p.soundEnabled)
             .putString(KEY_NAME, p.playerName)
+            .putLong(KEY_AVATAR_STAMP, p.avatarStamp)
             .apply()
     }
 
@@ -203,7 +233,8 @@ class ProfileStore(context: Context) {
             currentWinStreak = prefs.getInt(KEY_STREAK, 0),
             lastBonusDay = prefs.getLong(KEY_BONUS_DAY, -1L),
             soundEnabled = prefs.getBoolean(KEY_SOUND, true),
-            playerName = prefs.getString(KEY_NAME, "Player") ?: "Player"
+            playerName = prefs.getString(KEY_NAME, "Player") ?: "Player",
+            avatarStamp = prefs.getLong(KEY_AVATAR_STAMP, 0L)
         )
     }
 
@@ -224,6 +255,7 @@ class ProfileStore(context: Context) {
         private const val KEY_BONUS_DAY = "bonus_day"
         private const val KEY_SOUND = "sound_enabled"
         private const val KEY_NAME = "player_name"
+        private const val KEY_AVATAR_STAMP = "avatar_stamp"
         private const val KEY_DEVICE_ID = "device_id"
 
         @Volatile

@@ -91,6 +91,11 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+
+    // Reads a photo's orientation. Phones write down which way they were held rather than
+    // rotating the pixels, so without this an avatar picked from the camera roll arrives
+    // lying on its side.
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     // Online play. The rest of the game never touches this.
