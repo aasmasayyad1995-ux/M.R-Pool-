@@ -45,6 +45,8 @@ import com.mrpool.eightball.data.PlayerProfile
 @Composable
 fun ProfileScreen(
     profile: PlayerProfile,
+    /** Why the last picture did not save, or null when nothing has gone wrong. */
+    pictureProblem: String?,
     onPickPicture: () -> Unit,
     onRemovePicture: () -> Unit,
     onNameChange: (String) -> Unit,
@@ -96,6 +98,14 @@ fun ProfileScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = Chalk.copy(alpha = 0.55f)
                 )
+
+                if (pictureProblem != null) {
+                    Text(
+                        "Could not set that picture — $pictureProblem. Try another one.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Crimson
+                    )
+                }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(

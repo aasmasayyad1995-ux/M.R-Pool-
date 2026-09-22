@@ -26,6 +26,7 @@ import androidx.core.view.WindowCompat
 import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.audio.GameAudio
 import com.mrpool.eightball.audio.Sound
+import com.mrpool.eightball.data.AvatarResult
 import com.mrpool.eightball.data.PlayerProfile
 import com.mrpool.eightball.data.ProfileStore
 import com.mrpool.eightball.game.ClothProperties
@@ -106,6 +107,9 @@ private fun MrPoolApp() {
         audio.enabled = profile.soundEnabled
     }
 
+    /** Why the last picture did not save, shown on the profile until the next attempt. */
+    var pictureProblem by remember { mutableStateOf<String?>(null) }
+
     var matchmaking by remember { mutableStateOf<Matchmaking>(Matchmaking.Idle) }
 
 
@@ -130,8 +134,10 @@ private fun MrPoolApp() {
         // A phone photo can be forty megapixels. Reading and scaling one takes long
         // enough that doing it here, on the thread that draws, would freeze the app.
         scope.launch {
-            val saved = withContext(Dispatchers.IO) { store.setAvatar(picked) }
-            if (!saved) toast("That picture could not be read")
+            when (val result = withContext(Dispatchers.IO) { store.setAvatar(picked) }) {
+                is AvatarResult.Saved -> pictureProblem = null
+                is AvatarResult.Failed -> pictureProblem = result.reason
+            }
         }
     }
 
@@ -237,12 +243,17 @@ private fun MrPoolApp() {
 
         Screen.Profile -> ProfileScreen(
             profile = profile,
+            pictureProblem = pictureProblem,
             onPickPicture = {
+                pictureProblem = null
                 pickPicture.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             },
-            onRemovePicture = { store.clearAvatar() },
+            onRemovePicture = {
+                pictureProblem = null
+                store.clearAvatar()
+            },
             onNameChange = { store.setPlayerName(it) },
             onBack = { go(Screen.Lobby) }
         )

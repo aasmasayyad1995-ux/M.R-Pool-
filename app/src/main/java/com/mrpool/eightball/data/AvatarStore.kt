@@ -10,6 +10,18 @@ import androidx.exifinterface.media.ExifInterface
 import java.io.File
 
 /**
+ * What happened when a picture was saved.
+ *
+ * A reason rather than a plain false, because the last time this failed it did so
+ * silently, and working out which of five steps had gone wrong took a guess and a round
+ * trip. Whatever the player sees on the screen should be enough to say where it stopped.
+ */
+sealed interface AvatarResult {
+    data object Saved : AvatarResult
+    data class Failed(val reason: String) : AvatarResult
+}
+
+/**
  * The player's profile picture: one small square PNG in the app's own storage.
  *
  * The picked photo is copied rather than remembered by URI. A URI handed over by the photo
@@ -35,8 +47,11 @@ class AvatarStore(context: Context) {
      * scaled down. Returns false when it could not be read, leaving any existing avatar
      * alone rather than replacing it with nothing.
      */
-    fun save(source: Uri): Boolean {
-        val prepared = runCatching { decode(source) }.getOrNull() ?: return false
+    fun save(source: Uri): AvatarResult {
+        val prepared = when (val decoded = decode(source)) {
+            is AvatarResult.Failed -> return decoded
+            is Decoded -> decoded.bitmap
+        }
         val temporary = File(appContext.filesDir, "$FILE_NAME.tmp")
         return try {
             // Written beside the real file and moved into place, so a failure part way
@@ -49,21 +64,25 @@ class AvatarStore(context: Context) {
             // ball with no hint as to why.
             if (!written || temporary.length() <= 0L) {
                 Log.w(TAG, "the picture could not be encoded")
-                return false
+                return AvatarResult.Failed("the picture could not be encoded")
             }
             // renameTo will not replace an existing file on every filesystem, and a
             // silent false there means the second picture a player chooses never appears.
             // Deleting first makes the move the same on all of them.
             file.delete()
-            if (temporary.renameTo(file)) return true
+            if (temporary.renameTo(file)) return AvatarResult.Saved
 
             // Some devices still refuse the move. Copying is slower and always works, and
             // a picture that arrives slowly beats one that never arrives.
             temporary.copyTo(file, overwrite = true)
-            file.length() > 0L
+            if (file.length() > 0L) {
+                AvatarResult.Saved
+            } else {
+                AvatarResult.Failed("the picture could not be written to storage")
+            }
         } catch (t: Throwable) {
             Log.w(TAG, "could not write the avatar", t)
-            false
+            AvatarResult.Failed("writing the picture failed: ${t.javaClass.simpleName}")
         } finally {
             temporary.delete()
             prepared.recycle()
@@ -76,20 +95,39 @@ class AvatarStore(context: Context) {
 
     // ---------------------------------------------------------------------- decoding
 
-    private fun decode(source: Uri): Bitmap? {
+    /** A decoded picture, so [decode] can hand back either a bitmap or a reason. */
+    private class Decoded(val bitmap: Bitmap) : AvatarResult
+
+    private fun decode(source: Uri): AvatarResult = runCatching { decodeOrThrow(source) }
+        .getOrElse {
+            Log.w(TAG, "could not read the picture", it)
+            AvatarResult.Failed("the photo could not be read: ${it.javaClass.simpleName}")
+        }
+
+    private fun decodeOrThrow(source: Uri): AvatarResult {
         // First pass reads only the size, so a forty megapixel photo is never in memory.
+        //
+        // With inJustDecodeBounds set, decodeStream fills the size in and returns null BY
+        // DESIGN — there is no bitmap to give back. Treating that null as a failure meant
+        // giving up on the first step of every photo ever chosen, so nothing was ever
+        // saved. The only thing worth failing on here is not being able to open the photo
+        // at all, so the check belongs on the stream and the size, never on this decode.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        appContext.contentResolver.openInputStream(source)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: return null
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val sizing = appContext.contentResolver.openInputStream(source)
+            ?: return AvatarResult.Failed("the photo could not be opened")
+        sizing.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return AvatarResult.Failed("the photo's size could not be read")
+        }
 
         val options = BitmapFactory.Options().apply {
             inSampleSize = AvatarImage.sampleSize(bounds.outWidth, bounds.outHeight)
         }
-        val decoded = appContext.contentResolver.openInputStream(source)?.use {
-            BitmapFactory.decodeStream(it, null, options)
-        } ?: return null
+        val pixels = appContext.contentResolver.openInputStream(source)
+            ?: return AvatarResult.Failed("the photo could not be opened a second time")
+        // This pass does hand back a bitmap, so here a null really is a failure.
+        val decoded = pixels.use { BitmapFactory.decodeStream(it, null, options) }
+            ?: return AvatarResult.Failed("the photo could not be decoded")
 
         val upright = turnUpright(source, decoded)
         val crop = AvatarImage.centreSquare(upright.width, upright.height)
@@ -99,7 +137,7 @@ class AvatarStore(context: Context) {
         )
         if (square !== scaled) square.recycle()
         if (upright !== decoded) decoded.recycle()
-        return scaled
+        return Decoded(scaled)
     }
 
     /** Applies the photo's EXIF orientation, which phones write instead of rotating pixels. */
