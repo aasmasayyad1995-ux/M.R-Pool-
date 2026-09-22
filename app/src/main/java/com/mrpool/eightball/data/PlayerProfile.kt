@@ -15,7 +15,15 @@ data class PlayerProfile(
     val lastBonusDay: Long = -1L,
     val soundEnabled: Boolean = true,
     /** Shown to the other player in an online match. */
-    val playerName: String = "Player"
+    val playerName: String = "Player",
+    /**
+     * Bumped whenever a new profile picture is saved.
+     *
+     * The picture itself is a file, which Compose cannot watch. This is what tells the
+     * screens that the file underneath them has changed and the old one they are holding
+     * is stale.
+     */
+    val avatarStamp: Long = 0L
 ) {
     fun owns(cue: CueStick): Boolean = cue.isFree || ownedCueIds.contains(cue.id)
 
@@ -44,6 +52,15 @@ data class PlayerProfile(
      */
     fun withSoundToggled(): PlayerProfile = copy(soundEnabled = !soundEnabled)
 
+    /**
+     * This profile renamed, with whatever the player typed made fit to show.
+     *
+     * The name goes on a scoreboard and across to an opponent, so it is trimmed, capped at
+     * [MAX_NAME] characters, and a blank one falls back rather than leaving an empty plate.
+     */
+    fun withName(raw: String): PlayerProfile =
+        copy(playerName = raw.trim().take(MAX_NAME).ifBlank { DEFAULT_NAME })
+
     val matchesPlayed: Int get() = wins + losses
 
     companion object {
@@ -54,5 +71,9 @@ data class PlayerProfile(
          * making the matches themselves pointless.
          */
         const val DAILY_BONUS = 50
+
+        /** What fits on a scoreboard plate. */
+        const val MAX_NAME = 16
+        const val DEFAULT_NAME = "Player"
     }
 }

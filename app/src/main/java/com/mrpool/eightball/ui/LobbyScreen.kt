@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Paid
@@ -52,6 +53,7 @@ fun LobbyScreen(
     onChooseTable: () -> Unit,
     onHowToPlay: () -> Unit,
     onWallet: () -> Unit,
+    onProfile: () -> Unit,
     onToggleSound: () -> Unit
 ) {
     PoolBackground {
@@ -66,16 +68,13 @@ fun LobbyScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
+                Avatar(stamp = profile.avatarStamp, size = 52.dp, onClick = onProfile)
+                Column(
                     modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(0xFF14181C), Color(0xFF2B3238)))),
-                    contentAlignment = Alignment.Center
+                        .padding(start = 14.dp)
+                        .weight(1f)
+                        .clickable { onProfile() }
                 ) {
-                    Text("8", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
-                }
-                Column(modifier = Modifier.padding(start = 14.dp).weight(1f)) {
                     Text(
                         "MR. POOL",
                         style = MaterialTheme.typography.displayLarge,
@@ -83,7 +82,7 @@ fun LobbyScreen(
                         fontSize = 30.sp
                     )
                     Text(
-                        "8 Ball Pool · 3D Edition",
+                        profile.playerName,
                         style = MaterialTheme.typography.labelSmall,
                         color = Chalk.copy(alpha = 0.6f)
                     )
@@ -172,6 +171,14 @@ fun LobbyScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = Chalk.copy(alpha = 0.45f),
                 modifier = Modifier.padding(top = 10.dp)
+            )
+            MenuTile(
+                title = "Profile",
+                subtitle = "${profile.playerName} · ${profile.wins}W ${profile.losses}L",
+                icon = Icons.Filled.AccountCircle,
+                accent = Color(0xFF9CC6FF),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onProfile
             )
             MenuTile(
                 title = "Coins & Rewards",
