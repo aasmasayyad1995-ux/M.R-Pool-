@@ -87,8 +87,25 @@ fun LobbyScreen(
                         color = Chalk.copy(alpha = 0.6f)
                     )
                 }
+                // Beside the speaker, so the profile is a button in its own right rather
+                // than only a picture somebody has to guess is tappable.
                 Box(
                     modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(InkSoft)
+                        .clickable { onProfile() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AccountCircle,
+                        contentDescription = "Profile",
+                        tint = Color(0xFF9CC6FF)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
                         .size(38.dp)
                         .clip(CircleShape)
                         .background(InkSoft)
