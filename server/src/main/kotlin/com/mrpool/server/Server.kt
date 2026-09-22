@@ -3,6 +3,7 @@ package com.mrpool.server
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
+import io.ktor.server.application.log
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.response.respondText
@@ -81,6 +82,11 @@ fun Application.matchServer(hub: Hub = Hub()) {
                         "queue" -> hub.quickMatch(peer)
                         "leave" -> hub.leave(peer)
                         "relay" -> envelope.body?.let { hub.relay(peer, it) }
+                        // Written to the log and no further. The app tells the player as
+                        // much, so nobody is left believing something was done about it.
+                        "report" -> hub.report(peer, envelope.lines)?.let {
+                            application.log.warn(it)
+                        }
                         else -> send(Messages.error("unknown op ${envelope.op}"))
                     }
                 }

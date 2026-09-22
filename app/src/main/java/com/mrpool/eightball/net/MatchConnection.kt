@@ -52,6 +52,7 @@ class MatchConnection(
     override var onRemoteMove: ((Int, MatchMove) -> Unit)? = null
     override var onRemoteChecksum: ((Int, String) -> Unit)? = null
     override var onSnapshot: ((Int, GameSnapshot) -> Unit)? = null
+    override var onChat: ((String) -> Unit)? = null
     override var onOpponentGone: (() -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
@@ -170,6 +171,14 @@ class MatchConnection(
     @Suppress("UNCHECKED_CAST")
     private fun readBody(body: Any?) {
         val map = body as? Map<String, Any?> ?: return
+
+        // Chat is the one thing that is not tied to a move, so it is read before the move
+        // index is insisted on.
+        if (map["k"] == "chat") {
+            (map["t"] as? String)?.let { onChat?.invoke(it) }
+            return
+        }
+
         val index = (map["i"] as? Double)?.toInt() ?: return
         when (map["k"] as? String) {
             "move" -> MatchProtocol.decodeMove(map["m"] as? Map<String, Any?>)
@@ -192,6 +201,15 @@ class MatchConnection(
 
     override fun sendSnapshot(index: Int, snapshot: GameSnapshot) =
         relay(mapOf("k" to "snap", "i" to index, "s" to MatchProtocol.encode(snapshot)))
+
+    override fun sendChat(text: String) =
+        relay(mapOf("k" to "chat", "t" to text))
+
+    override fun reportOpponent(lines: List<String>) {
+        // Straight to the server, not to the other player: they are not told they were
+        // reported, because telling them tends to make things worse for whoever reported.
+        socket?.send(Json.write(mapOf("op" to "report", "lines" to lines)))
+    }
 
     private fun relay(body: Map<String, Any?>) {
         socket?.send(Json.write(mapOf("op" to "relay", "body" to body)))

@@ -49,6 +49,9 @@ class Hub(private val random: Random = Random.Default) {
     /** Names, so each player can be told who they are up against. */
     private val names = HashMap<String, String>()
 
+    /** Who has already reported, so the log cannot be flooded by holding the button down. */
+    private val reporters = HashSet<String>()
+
     val openRooms: Int get() = rooms.size
 
     suspend fun setName(peer: Peer, name: String) = mutex.withLock {
@@ -153,6 +156,30 @@ class Hub(private val random: Random = Random.Default) {
         other?.send(Messages.peer(body))
     }
 
+    /**
+     * Writes a report down.
+     *
+     * That is the whole of it, and it is worth being plain about why. There are no accounts
+     * here, so there is no one to ban: a player is a name typed into a box and a socket that
+     * closes when they leave. What this gives is a record in the log that somebody can read.
+     * The part that actually protects the player who reported is the mute in their own app,
+     * which needs no server at all.
+     *
+     * Returns the line to write, or null when the reporter is not in a room.
+     */
+    suspend fun report(peer: Peer, lines: List<String>): String? {
+        val (code, about) = mutex.withLock {
+            val code = roomOf[peer.id] ?: return@withLock null
+            // One report per player per room. A second one says nothing the first did not.
+            if (!reporters.add(peer.id)) return@withLock null
+            code to rooms[code]?.other(peer)?.let { nameOf(it) }
+        } ?: return null
+
+        val quoted = lines.take(Messages.MAX_REPORT_LINES)
+            .joinToString(" | ") { it.replace("\n", " ").take(MAX_REPORTED_LENGTH) }
+        return "REPORT room=$code by=${nameOf(peer)} about=${about ?: "(gone)"} said=[$quoted]"
+    }
+
     /** Leaves the queue or the room, telling the opponent they are on their own. */
     suspend fun leave(peer: Peer) {
         val orphan = mutex.withLock { leaveLocked(peer) }
@@ -165,6 +192,7 @@ class Hub(private val random: Random = Random.Default) {
      */
     private fun leaveLocked(peer: Peer): Peer? {
         if (waiting?.id == peer.id) waiting = null
+        reporters.remove(peer.id)
 
         val code = roomOf.remove(peer.id) ?: return null
         val room = rooms[code] ?: return null
@@ -175,6 +203,11 @@ class Hub(private val random: Random = Random.Default) {
         rooms.remove(code)
         other?.let { roomOf.remove(it.id) }
         return other
+    }
+
+    private companion object {
+        /** Long enough to see what was said, short enough that the log cannot be flooded. */
+        const val MAX_REPORTED_LENGTH = 200
     }
 
     /** True when [peer] is in a room with someone. Used by the tests and the health page. */

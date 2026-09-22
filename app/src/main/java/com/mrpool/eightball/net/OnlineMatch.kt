@@ -38,7 +38,9 @@ class OnlineMatch(
     val session: GameSession,
     val localSeat: Seat,
     val isHost: Boolean,
-    private val transport: MatchTransport
+    private val transport: MatchTransport,
+    /** Swapped out by the chat tests so the rate limiter's window can be wound forward. */
+    clock: () -> Long = System::currentTimeMillis
 ) {
 
     /** How many moves have been applied to this table. Also the index of the next one. */
@@ -58,6 +60,19 @@ class OnlineMatch(
             session.phase != GamePhase.GAME_OVER
 
     val remoteSeat: Seat get() = if (localSeat == Seat.ONE) Seat.TWO else Seat.ONE
+
+    /**
+     * What the two players say to each other, with its filter, its limits, its mute and
+     * its report. Lives here because the transport is here and because it must be usable
+     * from a test without a screen.
+     */
+    val chat: ChatLog = ChatLog(
+        localName = session.playerAt(localSeat).name,
+        remoteName = session.playerAt(if (localSeat == Seat.ONE) Seat.TWO else Seat.ONE).name,
+        publish = transport::sendChat,
+        publishReport = transport::reportOpponent,
+        clock = clock
+    )
 
     /** Moves that arrived before this device was ready for them. */
     private val buffered = HashMap<Int, MatchMove>()
@@ -85,6 +100,7 @@ class OnlineMatch(
                 status = OnlineStatus.PLAYING
             }
         }
+        transport.onChat = { chat.receive(it) }
         transport.onOpponentGone = { status = OnlineStatus.OPPONENT_GONE }
     }
 
@@ -220,6 +236,7 @@ class OnlineMatch(
         transport.onRemoteMove = null
         transport.onRemoteChecksum = null
         transport.onSnapshot = null
+        transport.onChat = null
         transport.onOpponentGone = null
         transport.close()
     }

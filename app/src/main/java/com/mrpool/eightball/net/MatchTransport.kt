@@ -23,6 +23,18 @@ interface MatchTransport {
     /** Host only: publishes the authoritative table after a disagreement. */
     fun sendSnapshot(index: Int, snapshot: GameSnapshot)
 
+    /** Sends a line of chat. Already cleaned and rate limited by [ChatLog]. */
+    fun sendChat(text: String)
+
+    /**
+     * Reports the opponent to the server, with the lines complained of.
+     *
+     * This goes to the server rather than to the other player, and nothing comes back: it
+     * is written into the server's log so there is a record, which without accounts is as
+     * far as a report can go. Muting is what actually stops the messages.
+     */
+    fun reportOpponent(lines: List<String>)
+
     /** Stops listening and releases whatever the implementation holds open. */
     fun close()
 
@@ -34,6 +46,9 @@ interface MatchTransport {
 
     /** Set by [OnlineMatch]; called when the host publishes a repair snapshot. */
     var onSnapshot: ((index: Int, snapshot: GameSnapshot) -> Unit)?
+
+    /** Set by [OnlineMatch]; called when the opponent types something. */
+    var onChat: ((text: String) -> Unit)?
 
     /** Set by [OnlineMatch]; called when the opponent disconnects or forfeits. */
     var onOpponentGone: (() -> Unit)?

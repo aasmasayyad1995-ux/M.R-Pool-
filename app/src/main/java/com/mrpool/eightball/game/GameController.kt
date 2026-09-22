@@ -8,6 +8,8 @@ import com.mrpool.eightball.audio.Sound
 import com.mrpool.eightball.audio.SoundPlayer
 import com.mrpool.eightball.audio.SoundSynth
 import com.mrpool.eightball.data.PoolTableSkin
+import com.mrpool.eightball.net.ChatLine
+import com.mrpool.eightball.net.ChatLog
 import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.net.OnlineStatus
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +57,12 @@ data class GameUiState(
     val waitingForOpponent: Boolean = false,
     /** Set when the opponent left, or while a desynced table is being repaired. */
     val onlineNotice: String? = null,
+    /** The match chat. Always empty off line, where there is nobody to talk to. */
+    val chatLines: List<ChatLine> = emptyList(),
+    /** Lines that have come in since the panel was last open, for the badge. */
+    val chatUnread: Int = 0,
+    val chatMuted: Boolean = false,
+    val chatReported: Boolean = false,
     val tableOpen: Boolean = true,
     /** Mirrors of the aim controls, so Compose re-draws the power bar and spin pad. */
     val power: Float = 0.55f,
@@ -101,6 +109,9 @@ class GameController(
     private val playerTwoName = opponentName
 
     val isOnline: Boolean = online != null
+
+    /** The match chat, or null when there is no opponent on the other end of a wire. */
+    val chat: ChatLog? get() = online?.chat
 
     var session: GameSession = online?.session ?: newSession()
         private set
@@ -572,6 +583,10 @@ class GameController(
                 !online.isLocalTurn &&
                 session.phase != GamePhase.GAME_OVER &&
                 online.status == OnlineStatus.PLAYING,
+            chatLines = online?.chat?.lines().orEmpty(),
+            chatUnread = online?.chat?.unread ?: 0,
+            chatMuted = online?.chat?.muted == true,
+            chatReported = online?.chat?.reported == true,
             onlineNotice = when (online?.status) {
                 OnlineStatus.OPPONENT_GONE -> "Your opponent left the match"
                 OnlineStatus.REPAIRING -> "Re-syncing with your opponent…"

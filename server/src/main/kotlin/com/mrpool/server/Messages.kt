@@ -2,6 +2,7 @@ package com.mrpool.server
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -65,7 +66,11 @@ object Messages {
                 op = op,
                 code = root["code"]?.jsonPrimitive?.contentOrNullSafe(),
                 name = root["name"]?.jsonPrimitive?.contentOrNullSafe(),
-                body = root["body"]?.toString()
+                body = root["body"]?.toString(),
+                lines = (root["lines"] as? JsonArray)
+                    ?.mapNotNull { (it as? JsonPrimitive)?.content }
+                    ?.take(MAX_REPORT_LINES)
+                    .orEmpty()
             )
         } catch (t: Throwable) {
             null
@@ -84,6 +89,11 @@ object Messages {
         val op: String,
         val code: String?,
         val name: String?,
-        val body: String?
+        val body: String?,
+        /** Only a report carries these: the lines the reporter is complaining about. */
+        val lines: List<String> = emptyList()
     )
+
+    /** A report is a handful of lines, not a transcript. Anything longer is dropped. */
+    const val MAX_REPORT_LINES = 6
 }

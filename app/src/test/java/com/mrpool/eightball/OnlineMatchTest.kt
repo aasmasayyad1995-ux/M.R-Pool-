@@ -33,6 +33,7 @@ private class LoopbackTransport(val name: String) : MatchTransport {
     override var onRemoteMove: ((Int, MatchMove) -> Unit)? = null
     override var onRemoteChecksum: ((Int, String) -> Unit)? = null
     override var onSnapshot: ((Int, GameSnapshot) -> Unit)? = null
+    override var onChat: ((String) -> Unit)? = null
     override var onOpponentGone: (() -> Unit)? = null
 
     /** When true, deliveries queue up instead of arriving, to simulate a stalled network. */
@@ -82,6 +83,19 @@ private class LoopbackTransport(val name: String) : MatchTransport {
         deliver { peer.onSnapshot?.invoke(index, decoded) }
     }
 
+    override fun sendChat(text: String) {
+        chatSent.add(text)
+        deliver { peer.onChat?.invoke(text) }
+    }
+
+    override fun reportOpponent(lines: List<String>) {
+        reportsSent.add(lines)
+    }
+
+    /** Everything this side put on the wire, in order. */
+    val chatSent = mutableListOf<String>()
+    val reportsSent = mutableListOf<List<String>>()
+
     override fun close() {
         held.clear()
     }
@@ -130,6 +144,71 @@ private class FakeNetwork(seed: Int) {
 }
 
 class OnlineMatchTest {
+
+    @Test
+    fun `chat crosses between the two phones, under each player's own name`() {
+        val network = FakeNetwork(seed = 5)
+
+        network.host.chat.say("good luck")
+        network.guest.chat.say("you too")
+
+        // Each side shows itself by its own name and the other by theirs.
+        assertEquals(
+            listOf("Host: good luck", "Guest: you too"),
+            network.host.chat.lines().map { "${it.author}: ${it.text}" }
+        )
+        assertEquals(
+            listOf("Host: good luck", "Guest: you too"),
+            network.guest.chat.lines().map { "${it.author}: ${it.text}" }
+        )
+        assertTrue("your own line is yours", network.host.chat.lines().first().fromLocal)
+        assertFalse("and theirs is not", network.guest.chat.lines().first().fromLocal)
+    }
+
+    @Test
+    fun `a muted opponent's chat never reaches the screen, though the game plays on`() {
+        val network = FakeNetwork(seed = 6)
+        network.host.chat.toggleMute()
+
+        network.guest.chat.say("nonsense")
+        assertTrue(
+            "nothing of theirs should be shown",
+            network.host.chat.lines().none { !it.fromLocal }
+        )
+
+        // Muting is about words, not about the match: the game must carry on regardless.
+        assertTrue(network.host.submitShot(0.02f, 0.9f, 0f, 0f))
+        network.settle()
+        assertTrue(network.describe(), network.tablesAgree())
+    }
+
+    @Test
+    fun `chat leaves the match alone`() {
+        val network = FakeNetwork(seed = 7)
+        val before = network.host.appliedMoves
+
+        network.host.chat.say("hello")
+        network.guest.chat.say("hi")
+
+        assertEquals("talking is not a move", before, network.host.appliedMoves)
+        assertEquals(before, network.guest.appliedMoves)
+        assertTrue(network.tablesAgree())
+    }
+
+    @Test
+    fun `a report names only the opponent's lines and never reaches them`() {
+        val network = FakeNetwork(seed = 8)
+        network.host.chat.say("nice shot")
+        network.guest.chat.say("shut it")
+
+        assertTrue(network.host.chat.report())
+
+        assertEquals(listOf(listOf("shut it")), network.hostTransport.reportsSent)
+        assertTrue(
+            "the reported player is not told, which only makes things worse",
+            network.guestTransport.chatSent.none { it.contains("report", ignoreCase = true) }
+        )
+    }
 
     @Test
     fun `both devices rack the same table from the same seed`() {

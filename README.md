@@ -121,6 +121,33 @@ Getting in: **Quick Match** takes whoever is waiting in the queue, or **Create a
 you a five character code to read out. The alphabet leaves out the characters that sound
 alike over a phone: no O or 0, no I, L or 1, no S or 5.
 
+### Chat
+
+The speech bubble beside the speaker opens the match chat. It rides on the same relay as the
+moves, so the server needed nothing new for it; only the report does.
+
+Opening a text box between two strangers is the part of this worth being careful about, so
+four things sit behind it:
+
+| | |
+| --- | --- |
+| **Filter** | `ChatFilter` blanks the word list, in English and in Roman-typed Hindi and Urdu, seeing through the usual dodges — `f4ck`, `$hit`, `fuuuck` — and through ordinary word endings, so `fucking` needs no separate entry. Ordinary pool talk is deliberately left alone: "good shot", "class", "nice hit". |
+| **Flood limit** | Five messages every ten seconds, applied to what arrives as well as what is sent, because the other phone is running a copy of this app that we cannot vouch for. |
+| **Mute** | Stops the opponent's words reaching the screen at all, for the rest of the match. The game plays on. |
+| **Report** | Sends their recent lines to the server's log and mutes them. |
+
+**Be clear about what the filter and the report are.** A word list is a speed bump: anybody
+determined to get an insult past one can, by spelling it a way the list has not got. And
+because the game has no accounts, a report cannot ban anybody — there is nobody to ban, only
+a name typed into a box and a socket that closes. What it does is write down what was said.
+**Mute is the part that actually protects the player**, which is why it is a button on the
+panel and not buried in a menu, and why the app says as much in the panel rather than
+implying more safety than is there.
+
+Your own half of the conversation never goes in a report; only the lines you are complaining
+about. The reported player is not told, because telling them tends to make things worse for
+whoever reported.
+
 ### The server
 
 `server/` is a small Ktor WebSocket service that does two things: it pairs players, and it
@@ -131,7 +158,7 @@ place, the app, and the server never needs redeploying when they change.
 ```bash
 cd server
 ./gradlew run                 # listens on $PORT, or 8080
-./gradlew test                # 16 tests, including two clients over real WebSockets
+./gradlew test                # 20 tests, including two clients over real WebSockets
 ```
 
 Deploy it anywhere that takes a Dockerfile. `render.yaml` and `server/fly.toml` are

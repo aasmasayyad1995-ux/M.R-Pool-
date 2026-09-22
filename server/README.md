@@ -88,6 +88,7 @@ Client to server:
 | `{"op":"queue"}` | Takes a seat in the quick match queue |
 | `{"op":"leave"}` | Leaves the room or the queue |
 | `{"op":"relay","body":{…}}` | Sends `body` to the other player, untouched |
+| `{"op":"report","lines":["…"]}` | Reports the other player. Written to the log; nothing comes back |
 
 Server to client:
 
@@ -100,9 +101,29 @@ Server to client:
 | `{"op":"gone"}` | They left, or their connection dropped |
 | `{"op":"error","reason":"…"}` | That did not work |
 
+Chat is not in that table on purpose: it goes through `relay` like everything else, because
+the server does not read what it forwards. The filter, the flood limit and the mute are all
+in the app, on both sides of the wire.
+
+## Reports
+
+`report` writes one line to the server's log — the room, who reported, who they reported and
+up to six of the lines complained of — and returns nothing. One report per player per room,
+so a changed app cannot fill the log by holding the button down.
+
+**That is the whole of it, and the app says so to the player.** There are no accounts here,
+so there is nobody to ban: a player is a name typed into a box and a socket that closes when
+they leave. A report leaves a record somebody can read. The mute in the app is what actually
+stops the messages, and it needs no server at all.
+
 ## What it does not do yet
 
 No accounts, no rate limiting and no persistence — rooms live in memory and vanish when the
 process restarts, which is fine for matches that last minutes. Anyone who knows the URL can
 connect. Before this carries anything that matters, it needs at least a rate limit per
 connection and a cap on rooms per address.
+
+Note what that means for chat: the flood limit lives in the app, at both ends, so a changed
+client can still push messages at the relay as fast as it likes. The receiving app throws
+them away, which protects the player, but not the server. A per-connection limit here is the
+missing piece.

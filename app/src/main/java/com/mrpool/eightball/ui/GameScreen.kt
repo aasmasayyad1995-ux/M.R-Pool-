@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,7 @@ import com.mrpool.eightball.game.GameController
 import com.mrpool.eightball.game.GamePhase
 import com.mrpool.eightball.game.GameUiState
 import com.mrpool.eightball.game.Seat
+import com.mrpool.eightball.net.ChatSend
 import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.render.PoolRenderer
 import com.mrpool.eightball.render.PoolSurfaceView
@@ -95,6 +97,7 @@ fun GameScreen(
     val state by controller.uiState.collectAsState()
 
     var spinPadOpen by remember { mutableStateOf(false) }
+    var chatOpen by remember { mutableStateOf(false) }
     var hasPulled by remember { mutableStateOf(false) }
     if (state.pullingBack) hasPulled = true
 
@@ -140,10 +143,55 @@ fun GameScreen(
                     contentColor = if (soundEnabled) Chalk else Chalk.copy(alpha = 0.4f),
                     onClick = onToggleSound
                 )
+                if (controller.isOnline) {
+                    Box {
+                        RoundControl(
+                            label = "💬",
+                            background =
+                                if (chatOpen) Cyan.copy(alpha = 0.8f) else Color(0xAA141B1D),
+                            contentColor = if (chatOpen) Ink else Chalk,
+                            onClick = {
+                                chatOpen = !chatOpen
+                                if (chatOpen) {
+                                    controller.chat?.markRead()
+                                    spinPadOpen = false
+                                }
+                            }
+                        )
+                        // Only while it is shut: an open panel is being read.
+                        if (!chatOpen) {
+                            UnreadDot(
+                                count = state.chatUnread,
+                                modifier = Modifier.align(Alignment.TopEnd)
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        if (spinPadOpen) {
+        if (chatOpen) {
+            val chat = controller.chat
+            // Read as they arrive while the panel is up, so the badge does not build up
+            // behind something the player is already looking at.
+            LaunchedEffect(state.chatLines.size) { chat?.markRead() }
+            ChatPanel(
+                lines = state.chatLines,
+                muted = state.chatMuted,
+                reported = state.chatReported,
+                opponentName =
+                    if (state.localSeat == Seat.TWO) state.playerOneName else state.playerTwoName,
+                onSend = { chat?.say(it) ?: ChatSend.Empty },
+                onToggleMute = { chat?.toggleMute() },
+                onReport = { chat?.report() },
+                onClose = { chatOpen = false },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 14.dp, bottom = 110.dp)
+            )
+        }
+
+        if (spinPadOpen && !chatOpen) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)

@@ -26,7 +26,11 @@ private class Wire(val name: String) : MatchTransport {
     override var onRemoteMove: ((Int, MatchMove) -> Unit)? = null
     override var onRemoteChecksum: ((Int, String) -> Unit)? = null
     override var onSnapshot: ((Int, GameSnapshot) -> Unit)? = null
+    override var onChat: ((String) -> Unit)? = null
     override var onOpponentGone: (() -> Unit)? = null
+
+    override fun sendChat(text: String) = Unit
+    override fun reportOpponent(lines: List<String>) = Unit
 
     override fun sendMove(index: Int, move: MatchMove) { peer.onRemoteMove?.invoke(index, move) }
     override fun sendChecksum(index: Int, checksum: String) {

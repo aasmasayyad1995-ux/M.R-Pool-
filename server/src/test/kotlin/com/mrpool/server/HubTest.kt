@@ -196,6 +196,51 @@ class HubTest {
     }
 
     @Test
+    fun `a report is written down, with who said what to whom`() = runBlocking {
+        val hub = hub()
+        val host = FakePeer("host")
+        val guest = FakePeer("guest")
+        hub.setName(host, "Asma")
+        hub.setName(guest, "Rude Player")
+        hub.createRoom(host)
+        hub.joinRoom(guest, host.lastCode()!!)
+
+        val written = hub.report(host, listOf("you are terrible"))
+
+        assertNotNull(written)
+        assertTrue(written!!.contains("by=Asma"), written)
+        assertTrue(written.contains("about=Rude Player"), written)
+        assertTrue(written.contains("you are terrible"), written)
+    }
+
+    @Test
+    fun `a second report from the same player is not written again`() = runBlocking {
+        val hub = hub()
+        val host = FakePeer("host")
+        val guest = FakePeer("guest")
+        hub.createRoom(host)
+        hub.joinRoom(guest, host.lastCode()!!)
+
+        assertNotNull(hub.report(host, listOf("once")))
+        // Otherwise a changed app could fill the log by holding the button down.
+        assertNull(hub.report(host, listOf("twice")))
+    }
+
+    @Test
+    fun `a report from someone in no room is dropped`() = runBlocking {
+        val hub = hub()
+        assertNull(hub.report(FakePeer("nobody"), listOf("anything")))
+    }
+
+    @Test
+    fun `a report carries only a handful of lines`() {
+        val many = (1..50).joinToString(",") { """"line $it"""" }
+        val envelope = Messages.parse("""{"op":"report","lines":[$many]}""")
+        assertNotNull(envelope)
+        assertEquals(Messages.MAX_REPORT_LINES, envelope!!.lines.size)
+    }
+
+    @Test
     fun `an unreadable envelope is rejected rather than guessed at`() {
         assertNull(Messages.parse("not json at all"))
         assertNull(Messages.parse("{}"))

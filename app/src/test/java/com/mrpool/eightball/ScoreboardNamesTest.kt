@@ -23,7 +23,11 @@ private class Silent : MatchTransport {
     override var onRemoteMove: ((Int, MatchMove) -> Unit)? = null
     override var onRemoteChecksum: ((Int, String) -> Unit)? = null
     override var onSnapshot: ((Int, GameSnapshot) -> Unit)? = null
+    override var onChat: ((String) -> Unit)? = null
     override var onOpponentGone: (() -> Unit)? = null
+
+    override fun sendChat(text: String) = Unit
+    override fun reportOpponent(lines: List<String>) = Unit
     override fun sendMove(index: Int, move: MatchMove) = Unit
     override fun sendChecksum(index: Int, checksum: String) = Unit
     override fun sendSnapshot(index: Int, snapshot: GameSnapshot) = Unit
