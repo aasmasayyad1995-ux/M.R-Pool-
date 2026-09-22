@@ -49,8 +49,8 @@ class AvatarStore(context: Context) {
      */
     fun save(source: Uri): AvatarResult {
         val prepared = when (val decoded = decode(source)) {
-            is AvatarResult.Failed -> return decoded
-            is Decoded -> decoded.bitmap
+            is Decode.Failed -> return AvatarResult.Failed(decoded.reason)
+            is Decode.Ready -> decoded.bitmap
         }
         val temporary = File(appContext.filesDir, "$FILE_NAME.tmp")
         return try {
@@ -95,16 +95,25 @@ class AvatarStore(context: Context) {
 
     // ---------------------------------------------------------------------- decoding
 
-    /** A decoded picture, so [decode] can hand back either a bitmap or a reason. */
-    private class Decoded(val bitmap: Bitmap) : AvatarResult
+    /**
+     * What came back from reading the photo: a bitmap, or why there is not one.
+     *
+     * Its own type rather than reusing [AvatarResult]. Sharing that one meant decoding
+     * could in principle return Saved, which it never does, and a `when` over it was
+     * either not exhaustive or carried a branch that could not happen.
+     */
+    private sealed interface Decode {
+        class Ready(val bitmap: Bitmap) : Decode
+        class Failed(val reason: String) : Decode
+    }
 
-    private fun decode(source: Uri): AvatarResult = runCatching { decodeOrThrow(source) }
+    private fun decode(source: Uri): Decode = runCatching { decodeOrThrow(source) }
         .getOrElse {
             Log.w(TAG, "could not read the picture", it)
-            AvatarResult.Failed("the photo could not be read: ${it.javaClass.simpleName}")
+            Decode.Failed("the photo could not be read: ${it.javaClass.simpleName}")
         }
 
-    private fun decodeOrThrow(source: Uri): AvatarResult {
+    private fun decodeOrThrow(source: Uri): Decode {
         // First pass reads only the size, so a forty megapixel photo is never in memory.
         //
         // With inJustDecodeBounds set, decodeStream fills the size in and returns null BY
@@ -114,20 +123,20 @@ class AvatarStore(context: Context) {
         // at all, so the check belongs on the stream and the size, never on this decode.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         val sizing = appContext.contentResolver.openInputStream(source)
-            ?: return AvatarResult.Failed("the photo could not be opened")
+            ?: return Decode.Failed("the photo could not be opened")
         sizing.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            return AvatarResult.Failed("the photo's size could not be read")
+            return Decode.Failed("the photo's size could not be read")
         }
 
         val options = BitmapFactory.Options().apply {
             inSampleSize = AvatarImage.sampleSize(bounds.outWidth, bounds.outHeight)
         }
         val pixels = appContext.contentResolver.openInputStream(source)
-            ?: return AvatarResult.Failed("the photo could not be opened a second time")
+            ?: return Decode.Failed("the photo could not be opened a second time")
         // This pass does hand back a bitmap, so here a null really is a failure.
         val decoded = pixels.use { BitmapFactory.decodeStream(it, null, options) }
-            ?: return AvatarResult.Failed("the photo could not be decoded")
+            ?: return Decode.Failed("the photo could not be decoded")
 
         val upright = turnUpright(source, decoded)
         val crop = AvatarImage.centreSquare(upright.width, upright.height)
@@ -137,7 +146,7 @@ class AvatarStore(context: Context) {
         )
         if (square !== scaled) square.recycle()
         if (upright !== decoded) decoded.recycle()
-        return Decoded(scaled)
+        return Decode.Ready(scaled)
     }
 
     /** Applies the photo's EXIF orientation, which phones write instead of rotating pixels. */
