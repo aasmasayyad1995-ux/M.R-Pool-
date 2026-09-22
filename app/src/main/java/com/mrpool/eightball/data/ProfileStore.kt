@@ -136,14 +136,15 @@ class ProfileStore(context: Context) {
     /**
      * Copies the picked photo in as the profile picture.
      *
-     * Returns false when the photo could not be read, in which case whatever was there
-     * before is still there — a picture that fails to load should not wipe the one the
-     * player already had.
+     * On failure it says why and leaves whatever was there before in place — a picture
+     * that fails to load should not wipe the one the player already had.
      */
-    fun setAvatar(source: Uri): Boolean {
-        if (!avatars.save(source)) return false
-        update(current.copy(avatarStamp = System.currentTimeMillis()))
-        return true
+    fun setAvatar(source: Uri): AvatarResult {
+        val result = avatars.save(source)
+        if (result is AvatarResult.Saved) {
+            update(current.copy(avatarStamp = System.currentTimeMillis()))
+        }
+        return result
     }
 
     /** Goes back to the plain eight ball. */
