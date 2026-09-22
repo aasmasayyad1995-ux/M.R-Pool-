@@ -74,7 +74,7 @@ fun GameScreen(
     soundEnabled: Boolean,
     onToggleSound: () -> Unit,
     onFinished: (won: Boolean) -> Unit,
-    /** Pays the entry fee for another rack; false means the player cannot afford it. */
+    /** Whether another rack may be started. Nothing is charged for one. */
     onRematchAllowed: () -> Boolean,
     onExit: () -> Unit
 ) {
@@ -589,7 +589,9 @@ private fun ResultDialog(
             )
             if (!isFriendMatch) {
                 Text(
-                    if (won) "+${formatCoins(prize)} coins" else "Entry fee lost",
+                    // There is no entry fee — the Wallet screen says so in as many words,
+                    // and nothing anywhere takes one. A loss costs the player nothing.
+                    if (won) "+${formatCoins(prize)} coins" else "No coins this time",
                     color = if (won) Gold else Chalk.copy(alpha = 0.6f),
                     style = MaterialTheme.typography.titleLarge
                 )
