@@ -6,6 +6,11 @@ skill levels, and a coin economy with 12 cue sticks and 20 tables to unlock.
 
 > Are you ready to become Mr. Pool? 🏆
 
+**Mr. Pool needs a connection to play.** Turn the data off and the game covers itself with
+a "No internet" screen and a retry — the robot and the same-device friend match included,
+even though the pool in them is played entirely on the phone. That is a deliberate choice
+and it is written up under [Needing a connection](#needing-a-connection).
+
 ## Opening
 
 The app opens on the Infinity Core studio card: the infinity mark draws itself as a single
@@ -147,6 +152,40 @@ at it:
 
 Leave that property out and online play is simply switched off; the rest of the game is
 unaffected and the online screen says what is missing.
+
+## Needing a connection
+
+The whole game is behind a connection check, not just online play.
+
+**What counts as connected** is a network Android has *validated* — one it has checked
+really carries traffic — rather than one the phone has merely joined. The difference is the
+cafe wifi that connects happily and carries nothing: counting that as online would let a
+player in and then break everything they touched.
+
+**Reaching the match server is deliberately not part of it.** The server sleeps when nobody
+is using it and takes up to a minute to wake, so tying the whole game to it would lock the
+player out of their own game every morning. The check is "does this phone have the
+internet", not "is Mr. Pool up".
+
+**A moment with no network is not a lost connection.** Android reports one at every handover
+between wifi and mobile data, and a game that ended a match on each of those would be worse
+to use than one with no check at all. The connection has to stay gone for
+`ConnectionGate.GRACE_MILLIS` — four seconds — before the game believes it. That rule lives
+in `ConnectionState`, which holds no Android types and is tested: the blink, the loss that
+sticks, a phone that reports the same loss over and over, and a second loss after a
+recovery.
+
+**What the player sees:**
+
+| Where they are | What happens |
+| --- | --- |
+| Anywhere but a match | The game is replaced by a "No internet" screen with a **Try again** button. There is nothing behind it to go back to, so there is no way past it. |
+| In a match | A message over the table with **one** button, OK, which takes them to the lobby. A match that has lost its connection cannot be picked up where it stopped, so a second button would have to promise something that does not work. |
+
+Being honest about the cost: the robot and the same-device friend match are played entirely
+on the phone and would work perfectly well on a train with no signal. They are gated anyway,
+because the game is meant to be an online game. If that is ever reconsidered, the one place
+to change it is `ConnectionGate.noticeFor`.
 
 ## Sound
 
