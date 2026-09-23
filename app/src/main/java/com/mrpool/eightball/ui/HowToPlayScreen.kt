@@ -29,6 +29,16 @@ private val LESSONS = listOf(
             "then pot the 8 ball to win the game."
     ),
     Lesson(
+        "You need a connection",
+        "Mr. Pool is an online game. With the data off it will not play — not the robot and " +
+            "not a friend on the same phone.",
+        listOf(
+            "Any working mobile data or wifi is enough; it does not have to reach our server.",
+            "A moment of nothing while your phone swaps wifi for data is ignored.",
+            "Lose the connection mid match and the match ends — it cannot be carried on."
+        )
+    ),
+    Lesson(
         "The break",
         "The game starts with a break from behind the head string. The table stays open after " +
             "the break: whatever drops does not decide your group yet.",

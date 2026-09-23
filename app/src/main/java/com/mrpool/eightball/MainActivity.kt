@@ -37,6 +37,9 @@ import com.mrpool.eightball.game.Seat
 import com.mrpool.eightball.net.MatchConnection
 import com.mrpool.eightball.net.MatchRoom
 import com.mrpool.eightball.net.Matchmaking
+import com.mrpool.eightball.net.ConnectionGate
+import com.mrpool.eightball.net.ConnectionNotice
+import com.mrpool.eightball.net.Connectivity
 import com.mrpool.eightball.net.OnlineConfig
 import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.data.PurchaseResult
@@ -44,6 +47,8 @@ import com.mrpool.eightball.ui.CueShopScreen
 import com.mrpool.eightball.ui.GameScreen
 import com.mrpool.eightball.ui.HowToPlayScreen
 import com.mrpool.eightball.ui.LobbyScreen
+import com.mrpool.eightball.ui.MatchEndedOfflineDialog
+import com.mrpool.eightball.ui.OfflineScreen
 import com.mrpool.eightball.ui.OnlineScreen
 import com.mrpool.eightball.ui.MrPoolTheme
 import com.mrpool.eightball.ui.ProfileScreen
@@ -106,6 +111,14 @@ private fun MrPoolApp() {
     LaunchedEffect(profile.soundEnabled) {
         audio.enabled = profile.soundEnabled
     }
+
+    // Mr. Pool is an online game: with no connection there is nothing to play, so this
+    // watches the phone's network for the whole of the app's life.
+    val connectivity = remember { Connectivity(context) }
+    DisposableEffect(connectivity) {
+        onDispose { connectivity.release() }
+    }
+    val hasInternet by connectivity.online.collectAsState()
 
     /** Why the last picture did not save, shown on the profile until the next attempt. */
     var pictureProblem by remember { mutableStateOf<String?>(null) }
@@ -200,10 +213,32 @@ private fun MrPoolApp() {
     // walks back to the lobby. A live match has its own handler below, because leaving one
     // is not simply a change of screen.
     BackHandler(
-        enabled = screen != Screen.Lobby && screen != Screen.Splash &&
+        enabled = hasInternet && screen != Screen.Lobby && screen != Screen.Splash &&
             screen !is Screen.OnlineMatchScreen
     ) {
         if (screen == Screen.Online) leaveMatchmaking() else go(Screen.Lobby)
+    }
+
+    val inMatch = screen is Screen.Match || screen is Screen.OnlineMatchScreen
+
+    // Leaving a match because the connection went is the same leaving as any other: the
+    // opponent has to be told, and the socket has to be let go of.
+    fun abandonForOffline() {
+        if (screen is Screen.OnlineMatchScreen) {
+            runCatching { connection?.close() }
+            connection = null
+        }
+        matchmaking = Matchmaking.Idle
+        screen = Screen.Lobby
+    }
+
+    val notice = ConnectionGate.noticeFor(online = hasInternet, inMatch = inMatch)
+
+    if (notice == ConnectionNotice.Blocked) {
+        // Nothing is playable, so this replaces the screen rather than covering it, and
+        // back from here closes the app exactly as back from the lobby does.
+        OfflineScreen(onRetry = { connectivity.recheck() })
+        return
     }
 
     when (val current = screen) {
@@ -403,6 +438,16 @@ private fun MrPoolApp() {
             onRematchAllowed = { true },
             onExit = { go(Screen.Lobby) }
         )
+    }
+
+    // After the screens, never before them: a sibling composed earlier is drawn *under*
+    // the ones that follow, so a dialog put above this point would be hidden behind the
+    // very table it is there to talk about.
+    if (notice == ConnectionNotice.MatchEnded) {
+        // One button, and it says OK. Back does the same thing rather than nothing, so
+        // there is no way to sit on a match that cannot go on.
+        BackHandler { abandonForOffline() }
+        MatchEndedOfflineDialog(onOk = { abandonForOffline() })
     }
 }
 
