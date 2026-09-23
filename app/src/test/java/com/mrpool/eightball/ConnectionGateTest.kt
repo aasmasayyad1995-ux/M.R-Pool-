@@ -139,6 +139,51 @@ class ConnectionStateTest {
     }
 
     @Test
+    fun `a watcher that asks once a second notices within the grace period and one ask`() {
+        // This is how the real watcher behaves: it asks the phone on a tick rather than
+        // believing a single callback, because the callbacks lied. The point of the test
+        // is that asking on a tick is enough — turn the data off and the answer arrives.
+        val tick = 1_000L
+        val state = ConnectionState()
+
+        var now = 0L
+        state.report(connected = true, nowMillis = now)
+
+        // The player turns their data off a moment after the last tick.
+        val wentOff = 500L
+
+        var noticedAt: Long? = null
+        while (now <= wentOff + grace + tick * 2) {
+            now += tick
+            state.report(connected = now < wentOff, nowMillis = now)
+            if (noticedAt == null && state.isOffline(now)) noticedAt = now
+        }
+
+        assertTrue("the watcher never noticed at all", noticedAt != null)
+        assertTrue(
+            "took $noticedAt ms, which is longer than the grace period plus one ask",
+            noticedAt!! <= wentOff + grace + tick
+        )
+    }
+
+    @Test
+    fun `a connection that comes back between two asks is never called a loss`() {
+        // The blink this exists for: gone when one tick asks, back by the next.
+        val tick = 1_000L
+        val state = ConnectionState()
+        state.report(connected = true, nowMillis = 0L)
+        state.report(connected = false, nowMillis = tick)
+        state.report(connected = true, nowMillis = tick * 2)
+
+        var now = tick * 2
+        repeat(10) {
+            now += tick
+            state.report(connected = true, nowMillis = now)
+            assertFalse("a blink must never become a lost connection", state.isOffline(now))
+        }
+    }
+
+    @Test
     fun `the grace period is long enough to be worth having`() {
         // A handover between networks takes a second or two. Anything shorter than that
         // and this may as well not be here.

@@ -44,9 +44,11 @@ object ConnectionGate {
      * How long the connection must stay gone before the game acts on it.
      *
      * Long enough to ride out a wifi-to-mobile handover, short enough that a player who
-     * has genuinely lost signal is not left aiming at a table that will not accept the shot.
+     * turns their data off sees the game react while they are still looking at it. The
+     * watcher asks the phone once a second, so what the player actually waits is this
+     * plus up to one of those.
      */
-    const val GRACE_MILLIS = 4_000L
+    const val GRACE_MILLIS = 3_000L
 
     /**
      * What to show.
