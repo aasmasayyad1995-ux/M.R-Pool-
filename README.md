@@ -218,7 +218,7 @@ playing earns nothing.
 
 The rules live in `AdPolicy`, away from Android and away from the ad SDK, so how often a
 player is interrupted is decided by tests rather than by feel. One of those tests is worth
-naming: a full day of watching rewarded ads (4 × 40 coins) must pay less than a couple of
+naming: a full day of watching rewarded ads (4 × 10 coins) must pay less than a couple of
 wins against the hard robot, because the moment tapping through ads beats playing, the
 matches stop mattering. The first draft of those numbers failed that test and was changed.
 

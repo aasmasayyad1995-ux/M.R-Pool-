@@ -49,17 +49,17 @@ object AdPolicy {
     /**
      * Coins for watching one rewarded ad.
      *
-     * Less than beating the medium robot, so the table is always the better way to earn.
+     * Small on purpose: well under a beginner win, so the table is by a long way the
+     * better place to earn and nothing about the economy leans on advertising.
      */
-    const val REWARD_COINS = 40
+    const val REWARD_COINS = 10
 
     /**
      * How many rewarded ads a player may take in a day.
      *
      * Coins are the whole of this game's economy and they are meant to be won at the
      * table. An unlimited tap-for-coins button would make the matches pointless, which
-     * costs more than the ads bring in. Four is worth having — most of the cheapest cue in
-     * a day — and still less than a couple of wins against the hard robot.
+     * costs more than the ads bring in.
      */
     const val REWARDS_PER_DAY = 4
 

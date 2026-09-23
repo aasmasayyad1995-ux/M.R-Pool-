@@ -46,7 +46,7 @@ In AdMob the three units are:
 | --- | --- | --- |
 | **Banner** | A 50dp strip under the menus — lobby, shops, wallet, profile | Always on those screens. **Never** over the table and never over the studio card. |
 | **Interstitial** | On the way from a finished match back to the lobby | Every third finished match, and never the first. The table is never interrupted and the result is never covered. |
-| **Rewarded** | A button in **Coins & Rewards** | Only when the player presses it. Four a day, 40 coins each. |
+| **Rewarded** | A button in **Coins & Rewards** | Only when the player presses it. Four a day, 10 coins each. |
 
 The rules are in `AdPolicy`, which holds no Android types and is tested — including a test
 that a day of watching ads pays less than a couple of wins against the hard robot, so the
