@@ -76,6 +76,15 @@ fun GameScreen(
     onFinished: (won: Boolean) -> Unit,
     /** Whether another rack may be started. Nothing is charged for one. */
     onRematchAllowed: () -> Boolean,
+    /**
+     * Wraps the walk back to the lobby, so an advert can run on the way out.
+     *
+     * It is given what to do next rather than being asked whether to interrupt, so a
+     * caller with nothing to show — or an ad that never loaded — simply runs it at once
+     * and the player notices nothing. The table is never interrupted and the result is
+     * never covered: this only fires once the player has read what happened and left.
+     */
+    onLeavingMatch: (proceed: () -> Unit) -> Unit = { it() },
     onExit: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -265,9 +274,9 @@ fun GameScreen(
                 prize = prize,
                 message = state.statusMessage,
                 onRematch = {
-                    if (onRematchAllowed()) controller.rematch() else onExit()
+                    if (onRematchAllowed()) controller.rematch() else onLeavingMatch(onExit)
                 },
-                onLobby = onExit
+                onLobby = { onLeavingMatch(onExit) }
             )
         }
     }

@@ -216,8 +216,15 @@ fun LobbyScreen(
 
             // Which build this is. Small, but it turns "the fix did not work" into a
             // question that answers itself from a screenshot.
+            //
+            // The ad ids ride along for the same reason: a build quietly shipped with
+            // Google's test units earns nothing, and a build quietly tested with the real
+            // ones gets the AdMob account closed. Neither should be a guess.
             Text(
-                "v${BuildConfig.VERSION_NAME} · build ${BuildConfig.BUILD_ID}",
+                buildString {
+                    append("v${BuildConfig.VERSION_NAME} · build ${BuildConfig.BUILD_ID}")
+                    if (BuildConfig.ADMOB_TEST_IDS) append(" · TEST ADS")
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = Chalk.copy(alpha = 0.3f),
                 modifier = Modifier
