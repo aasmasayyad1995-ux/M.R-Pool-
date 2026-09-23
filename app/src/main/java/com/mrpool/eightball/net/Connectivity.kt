@@ -8,27 +8,51 @@ import android.net.NetworkRequest
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * Whether the phone can reach the internet.
  *
- * Android is asked for a network that it has actually *validated* — one it has checked
- * really reaches the internet — rather than merely one that is connected. The difference
- * is the hotel wifi that a phone joins happily and that carries nothing: counting that as
- * online would let a player into the game and then break everything they tried to do.
+ * ## Why this asks rather than listens
  *
- * The flicker is smoothed here rather than on screen. Every handover between wifi and
- * mobile data reports a moment with nothing, and [ConnectionGate.GRACE_MILLIS] is how long
- * one has to last before the game believes it. The decision itself is in [ConnectionState],
- * which is plain Kotlin and tested.
+ * The first version of this trusted Android's network callbacks alone, and it did not
+ * work: turning mobile data off in the middle of a match changed nothing on screen. Three
+ * separate faults, any one of which was enough:
+ *
+ *  - `onLost` read `activeNetwork` to decide what was left, and at the instant a network
+ *    is lost that still hands back the network which is going away, still marked as
+ *    validated. So the loss reported a connection.
+ *  - `onCapabilitiesChanged` believed whichever network it was told about. The dying
+ *    network's own capabilities arrive with the loss and still say validated, so that put
+ *    the connection back after the loss had taken it away.
+ *  - `onAvailable` reported a connection for any network at all, before Android had
+ *    checked whether it carried anything.
+ *
+ * So the callbacks are no longer believed on their own. They are a nudge: something
+ * changed, look again. The answer always comes from asking Android afresh, and a slow tick
+ * asks anyway, so a callback that never arrives or arrives with stale news cannot leave
+ * the game believing it is online when it is not. Being a second late is a small cost;
+ * being wrong until the player restarts the app is not.
+ *
+ * ## What counts as connected
+ *
+ * A network Android has *validated* — one it has checked really carries traffic — rather
+ * than one the phone has merely joined. The difference is the cafe wifi that connects
+ * happily and carries nothing.
+ *
+ * Reaching the match server is deliberately not part of it: the server sleeps when nobody
+ * is using it and takes up to a minute to wake, so tying the game to it would lock the
+ * player out of their own game every morning.
+ *
+ * The flicker between wifi and mobile data is smoothed by [ConnectionState], which is
+ * plain Kotlin and tested.
  */
 class Connectivity(context: Context) {
 
@@ -36,45 +60,76 @@ class Connectivity(context: Context) {
         context.applicationContext.getSystemService(ConnectivityManager::class.java)
 
     private val state = ConnectionState()
+
+    /** One thread decides, so a callback and the tick cannot race each other. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var countdown: Job? = null
 
     private val _online = MutableStateFlow(true)
 
-    /** True while the phone has a validated connection. Starts true, corrected on the first report. */
+    /** True while the phone has a validated connection. */
     val online: StateFlow<Boolean> = _online.asStateFlow()
 
+    /**
+     * Every callback says the same thing: something moved, go and look.
+     *
+     * None of them is trusted for *what* changed, because each of the three lied in the
+     * version this replaces.
+     */
     private val callback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) = report(true)
-
-        override fun onLost(network: Network) = report(hasValidatedNetwork())
-
-        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-            report(
-                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            )
-        }
+        override fun onAvailable(network: Network) = poke()
+        override fun onLost(network: Network) = poke()
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = poke()
     }
 
+    private var watching = false
+
     init {
-        report(hasValidatedNetwork())
-        runCatching {
+        refresh()
+        watching = runCatching {
             manager?.registerNetworkCallback(
                 NetworkRequest.Builder()
                     .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                     .build(),
                 callback
             )
-        }.onFailure {
-            // A phone that will not let us watch the network must not be a phone that
-            // cannot play: assume there is a connection rather than locking the player out.
+            true
+        }.getOrElse {
+            // Not being allowed to watch the network must not mean not being allowed to
+            // play. The tick below still asks, so this loses the instant reaction and
+            // nothing else.
             Log.w(TAG, "could not watch the network", it)
-            _online.value = true
+            false
+        }
+
+        // The tick is what makes this reliable. A missed callback, a stale one, or a phone
+        // that simply does not send them can no longer leave the game believing it is on.
+        scope.launch {
+            while (isActive) {
+                delay(TICK_MILLIS)
+                refresh()
+            }
         }
     }
 
-    /** Asks Android directly, for the first reading and after a network goes away. */
+    /** Re-reads the network on the one thread that is allowed to decide. */
+    private fun poke() {
+        scope.launch { refresh() }
+    }
+
+    /** Asks Android, applies the grace period, and publishes the answer. */
+    private fun refresh() {
+        val now = System.currentTimeMillis()
+        state.report(hasValidatedNetwork(), now)
+        _online.value = !state.isOffline(now)
+    }
+
+    /**
+     * Whether Android currently has a network it has validated.
+     *
+     * Asked fresh every time. `activeNetwork` is stale for a moment after a loss, which is
+     * exactly why nothing acts on a single reading: [ConnectionState] needs the loss to
+     * hold for the whole grace period, by which time this has been asked several times.
+     */
     private fun hasValidatedNetwork(): Boolean {
         val active = manager?.activeNetwork ?: return false
         val caps = manager.getNetworkCapabilities(active) ?: return false
@@ -82,35 +137,23 @@ class Connectivity(context: Context) {
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
-    /** Re-reads the network and publishes it. For the Retry button on the offline screen. */
-    fun recheck() = report(hasValidatedNetwork())
-
-    private fun report(connected: Boolean) {
-        val now = System.currentTimeMillis()
-        state.report(connected, now)
-        countdown?.cancel()
-
-        if (connected) {
-            _online.value = true
-            return
-        }
-
-        // The loss has to outlast the grace period. Waiting here, rather than in the
-        // screen, keeps every caller from having to know about it.
-        val wait = state.millisUntilOffline(now) ?: 0L
-        countdown = scope.launch {
-            delay(wait)
-            if (state.isOffline(System.currentTimeMillis())) _online.value = false
-        }
-    }
+    /** Re-reads the network now. For the Try again button on the offline screen. */
+    fun recheck() = poke()
 
     fun release() {
-        countdown?.cancel()
+        if (watching) runCatching { manager?.unregisterNetworkCallback(callback) }
         scope.cancel()
-        runCatching { manager?.unregisterNetworkCallback(callback) }
     }
 
     private companion object {
         const val TAG = "Connectivity"
+
+        /**
+         * How often the network is asked about regardless of callbacks.
+         *
+         * Fast enough that the grace period, not this, decides how long the player waits;
+         * slow enough to be nothing at all next to drawing a 3D table sixty times a second.
+         */
+        const val TICK_MILLIS = 1_000L
     }
 }

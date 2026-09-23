@@ -170,10 +170,29 @@ internet", not "is Mr. Pool up".
 **A moment with no network is not a lost connection.** Android reports one at every handover
 between wifi and mobile data, and a game that ended a match on each of those would be worse
 to use than one with no check at all. The connection has to stay gone for
-`ConnectionGate.GRACE_MILLIS` — four seconds — before the game believes it. That rule lives
+`ConnectionGate.GRACE_MILLIS` — three seconds — before the game believes it. That rule lives
 in `ConnectionState`, which holds no Android types and is tested: the blink, the loss that
 sticks, a phone that reports the same loss over and over, and a second loss after a
 recovery.
+
+**The watcher asks; it does not only listen.** The first version of this trusted Android's
+network callbacks alone and did not work at all — turning mobile data off mid-match changed
+nothing on screen. Three separate faults, any one of them enough:
+
+* `onLost` read `activeNetwork` to see what was left, and at the instant a network is lost
+  that still returns the network going away, still marked validated. The loss reported a
+  connection.
+* `onCapabilitiesChanged` believed whichever network it was told about. The dying network's
+  own capabilities arrive with the loss and still say validated, so that put the connection
+  back after the loss had removed it.
+* `onAvailable` reported a connection for any network at all, before Android had checked
+  whether it carried anything.
+
+So the callbacks are now only a nudge — *something moved, look again* — and the answer
+always comes from asking Android afresh. A one second tick asks anyway, so a callback that
+never arrives, or arrives with stale news, cannot leave the game believing it is online. The
+player therefore waits the grace period plus at most one tick. Being a second late is a
+small cost; being wrong until the app is restarted is not.
 
 **What the player sees:**
 
