@@ -27,6 +27,7 @@ import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.audio.GameAudio
 import com.mrpool.eightball.audio.Sound
 import com.mrpool.eightball.data.AvatarResult
+import com.mrpool.eightball.data.BonusDay
 import com.mrpool.eightball.data.PlayerProfile
 import com.mrpool.eightball.data.ProfileStore
 import com.mrpool.eightball.game.ClothProperties
@@ -50,7 +51,6 @@ import com.mrpool.eightball.ui.RobotSetupScreen
 import com.mrpool.eightball.ui.SplashScreen
 import com.mrpool.eightball.ui.TableShopScreen
 import com.mrpool.eightball.ui.WalletScreen
-import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
@@ -145,6 +145,16 @@ private fun MrPoolApp() {
     fun onMatchmaking(update: Matchmaking) {
         matchmaking = update
         if (update is Matchmaking.Ready) {
+            // The pairing can land a moment after the player has walked off the
+            // matchmaking screen. Dropping them onto a pool table from the middle of the
+            // cue shop would be startling, and sitting in the room without them would
+            // leave the other player waiting at a table nobody is standing at. Leave.
+            if (screen != Screen.Online) {
+                update.room.transport.close()
+                connection = null
+                matchmaking = Matchmaking.Idle
+                return
+            }
             screen = Screen.OnlineMatchScreen(update.room)
             matchmaking = Matchmaking.Idle
         }
@@ -173,10 +183,27 @@ private fun MrPoolApp() {
         screen = Screen.Match(difficulty, store.prizeFor(difficulty))
     }
 
-    // Back closes the app from the lobby and from the studio card; everywhere else it
-    // walks back to the lobby.
-    BackHandler(enabled = screen != Screen.Lobby && screen != Screen.Splash) {
+    /**
+     * Leaves the matchmaking screen properly.
+     *
+     * Walking away without telling the server leaves the player sitting in its queue, and
+     * the queue does not care which screen they are looking at: the next person to press
+     * Quick Match is paired with them and waits at a table they never arrive at.
+     */
+    fun leaveMatchmaking() {
+        online()?.cancel()
+        matchmaking = Matchmaking.Idle
         go(Screen.Lobby)
+    }
+
+    // Back closes the app from the lobby and from the studio card; everywhere else it
+    // walks back to the lobby. A live match has its own handler below, because leaving one
+    // is not simply a change of screen.
+    BackHandler(
+        enabled = screen != Screen.Lobby && screen != Screen.Splash &&
+            screen !is Screen.OnlineMatchScreen
+    ) {
+        if (screen == Screen.Online) leaveMatchmaking() else go(Screen.Lobby)
     }
 
     when (val current = screen) {
@@ -287,7 +314,7 @@ private fun MrPoolApp() {
                 matchmaking = Matchmaking.Idle
             },
             onNameChange = { store.setPlayerName(it) },
-            onBack = { go(Screen.Lobby) }
+            onBack = { leaveMatchmaking() }
         )
 
         is Screen.OnlineMatchScreen -> {
@@ -312,6 +339,19 @@ private fun MrPoolApp() {
                     transport = room.transport
                 )
             }
+            /** The one way out of a match, whichever way the player asks for it. */
+            fun leaveMatch() {
+                onlineMatch.forfeit()
+                onlineMatch.close()
+                connection = null
+                go(Screen.Lobby)
+            }
+
+            // The back gesture used to be a plain change of screen, which left the
+            // opponent watching a table that would never move again and the socket open
+            // behind it. It takes the same way out as the button now.
+            BackHandler { leaveMatch() }
+
             GameScreen(
                 cue = profile.equippedCue,
                 table = profile.equippedTable,
@@ -327,12 +367,7 @@ private fun MrPoolApp() {
                 onToggleSound = { store.toggleSound() },
                 onFinished = { },
                 onRematchAllowed = { false },
-                onExit = {
-                    onlineMatch.forfeit()
-                    onlineMatch.close()
-                    connection = null
-                    go(Screen.Lobby)
-                }
+                onExit = { leaveMatch() }
             )
         }
 
@@ -371,7 +406,5 @@ private fun MrPoolApp() {
     }
 }
 
-private fun isBonusAvailable(profile: PlayerProfile): Boolean {
-    val today = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())
-    return profile.lastBonusDay != today
-}
+private fun isBonusAvailable(profile: PlayerProfile): Boolean =
+    profile.lastBonusDay != BonusDay.local()

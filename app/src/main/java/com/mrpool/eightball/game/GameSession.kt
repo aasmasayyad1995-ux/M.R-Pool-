@@ -51,10 +51,6 @@ class GameSession(
     var winner: Seat? = null
         private set
 
-    /** Set while the incoming player may place the cue ball behind the head string. */
-    var behindHeadString: Boolean = false
-        private set
-
     var statusMessage: String = "Break them!"
         private set
 
@@ -100,8 +96,10 @@ class GameSession(
     // -------------------------------------------------------------- cue ball placement
 
     fun isValidCueBallPosition(p: Vec2): Boolean {
+        // Ball in hand is anywhere on the table, which is what the rules card says and
+        // what every foul in this game gives. There is no head string restriction to
+        // check for: a field that was only ever false read like one that was enforced.
         if (!TableGeometry.isInsideCushions(p)) return false
-        if (behindHeadString && p.x > TableGeometry.HEAD_STRING_X) return false
         if (TableGeometry.pockets.any { p.distanceTo(it.center) < it.radius + TableGeometry.BALL_RADIUS }) {
             return false
         }
@@ -120,7 +118,6 @@ class GameSession(
         cue.pocketed = false
         cue.stop()
         phase = if (isBreakShot) GamePhase.BREAK else GamePhase.AIMING
-        behindHeadString = false
         statusMessage = "${currentPlayer.name} to shoot"
         return true
     }
@@ -261,7 +258,6 @@ class GameSession(
             respotCueBall()
             currentSeat = opponentOf(shooter)
             phase = GamePhase.BALL_IN_HAND
-            behindHeadString = false
         } else if (keepsTurn) {
             phase = GamePhase.AIMING
         } else {

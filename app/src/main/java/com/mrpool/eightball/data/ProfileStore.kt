@@ -8,8 +8,6 @@ import com.mrpool.eightball.ai.RobotDifficulty
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 /** Outcome of a shop purchase, so the UI can explain what happened. */
 sealed interface PurchaseResult {
@@ -103,7 +101,7 @@ class ProfileStore(context: Context) {
 
     /** Free coins once a day; returns the amount granted, or null when already claimed. */
     fun claimDailyBonus(nowMillis: Long = System.currentTimeMillis()): Int? {
-        val today = TimeUnit.MILLISECONDS.toDays(nowMillis)
+        val today = BonusDay.local(nowMillis)
         if (current.lastBonusDay == today) return null
         update(
             current.copy(
@@ -112,16 +110,6 @@ class ProfileStore(context: Context) {
             )
         )
         return PlayerProfile.DAILY_BONUS
-    }
-
-    /**
-     * A stable id for this installation, used to tell the two sides of an online match
-     * apart. Generated once and kept; it is not tied to the person, only to the install.
-     */
-    val deviceId: String by lazy {
-        prefs.getString(KEY_DEVICE_ID, null) ?: UUID.randomUUID().toString().also {
-            prefs.edit().putString(KEY_DEVICE_ID, it).apply()
-        }
     }
 
     /** The name the opponent sees online. */
@@ -192,6 +180,9 @@ class ProfileStore(context: Context) {
 
     fun resetProgress() {
         prefs.edit().clear().apply()
+        // The picture lives in a file, not in the preferences, so clearing those leaves
+        // the player's face on a profile that is otherwise brand new.
+        avatars.clear()
         _profile.value = PlayerProfile()
     }
 
@@ -257,7 +248,6 @@ class ProfileStore(context: Context) {
         private const val KEY_SOUND = "sound_enabled"
         private const val KEY_NAME = "player_name"
         private const val KEY_AVATAR_STAMP = "avatar_stamp"
-        private const val KEY_DEVICE_ID = "device_id"
 
         @Volatile
         private var instance: ProfileStore? = null

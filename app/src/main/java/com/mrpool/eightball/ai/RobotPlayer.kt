@@ -290,18 +290,31 @@ class RobotPlayer(
         if (!any) return null
 
         // Aim down the middle of each usable arc: that is the shot with the most margin.
+        //
+        // The sweep is a circle, so an arc can run off the end of the array and carry on
+        // at the start of it. Walking from zero cut such an arc in two and aimed at both
+        // of its ends — the two headings with the least margin in it, which is the one
+        // thing this is here to avoid. Starting from a gap keeps every arc whole.
         val headings = mutableListOf<Float>()
-        var index = 0
-        while (index < SCAN_STEPS) {
-            if (!reaching[index]) {
-                index++
-                continue
+        val gap = (0 until SCAN_STEPS).firstOrNull { !reaching[it] }
+        if (gap == null) {
+            // Every heading reaches a legal ball, so there is no arc to find the middle of.
+            headings.add(0f)
+        } else {
+            var step = 0
+            while (step < SCAN_STEPS) {
+                if (!reaching[(gap + step) % SCAN_STEPS]) {
+                    step++
+                    continue
+                }
+                var length = 1
+                while (length < SCAN_STEPS - step && reaching[(gap + step + length) % SCAN_STEPS]) {
+                    length++
+                }
+                val middle = (gap + step + (length - 1) / 2) % SCAN_STEPS
+                headings.add((middle.toFloat() / SCAN_STEPS) * TWO_PI)
+                step += length
             }
-            var end = index
-            while (end + 1 < SCAN_STEPS && reaching[end + 1]) end++
-            val middle = (index + end) / 2
-            headings.add((middle.toFloat() / SCAN_STEPS) * TWO_PI)
-            index = end + 1
         }
 
         val group = session.groupOf(session.currentSeat)

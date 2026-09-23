@@ -55,16 +55,42 @@ class GameAudio(context: Context) : SoundPlayer {
         for (sound in Sound.entries) {
             if (released) return
             try {
-                val file = File(directory, "${sound.name.lowercase()}.wav")
-                if (!file.exists() || file.length() < 64) {
-                    file.writeBytes(SoundSynth.toWav(SoundSynth.render(sound, sound.ordinal)))
-                }
+                // The version is in the name, so changing how a sound is made actually
+                // changes what the player hears. Without it the file from the old build
+                // is still sitting in the cache, and it is the one that gets loaded.
+                val file = File(directory, "${sound.name.lowercase()}-v$SYNTH_VERSION.wav")
+                if (!file.exists() || file.length() < 64) write(file, sound)
                 val id = soundPool.load(file.absolutePath, 1)
                 soundIds[sound] = id
             } catch (t: Throwable) {
                 // A sound that cannot be built must never take the game down with it.
                 Log.w(TAG, "could not prepare $sound", t)
             }
+        }
+        // Whatever an older build left behind is only taking up the player's storage.
+        runCatching {
+            directory.listFiles()?.forEach {
+                if (!it.name.endsWith("-v$SYNTH_VERSION.wav")) it.delete()
+            }
+        }
+    }
+
+    /**
+     * Writes one sound beside its real name and moves it into place.
+     *
+     * Writing straight to the real file means the app being killed part way through — a
+     * call arriving, the player swiping the game away — leaves a half written WAV that is
+     * long enough to pass the length check above. It is loaded on every launch after
+     * that, fails every time, and that one sound is gone for good on that phone.
+     */
+    private fun write(file: File, sound: Sound) {
+        val partial = File(file.parentFile, "${file.name}.part")
+        try {
+            partial.writeBytes(SoundSynth.toWav(SoundSynth.render(sound, sound.ordinal)))
+            file.delete()
+            if (!partial.renameTo(file)) partial.copyTo(file, overwrite = true)
+        } finally {
+            partial.delete()
         }
     }
 
@@ -123,5 +149,8 @@ class GameAudio(context: Context) : SoundPlayer {
         const val MAX_STREAMS = 10
         const val MIN_AUDIBLE = 0.04f
         const val CACHE_DIR = "mr-pool-sounds"
+
+        /** Bump this whenever [SoundSynth] changes what it produces. */
+        const val SYNTH_VERSION = 1
     }
 }
