@@ -5,7 +5,6 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 /** Immutable 2D vector used by the whole physics / aiming stack. */
 data class Vec2(val x: Float = 0f, val y: Float = 0f) {
@@ -73,5 +72,3 @@ fun normalizeAngle(angle: Float): Float {
     while (a > Math.PI.toFloat()) a -= twoPi
     return a
 }
-
-internal fun fastSqrt(v: Float): Float = sqrt(v)

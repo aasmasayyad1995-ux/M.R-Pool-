@@ -79,7 +79,8 @@ Standard 8 ball, including the parts most pool games skip:
   on the next shot.
 * Fouls: scratch, no contact, wrong group hit first, nothing reaching a cushion after
   contact, and an illegal break (fewer than four balls to a cushion with nothing potted).
-* A foul gives the opponent ball in hand anywhere on the table.
+* A foul gives the opponent ball in hand anywhere on the table — there is no head string
+  restriction after a scratch, which is the bar rule most people play by.
 * The 8 potted on the break is re-spotted, not a loss.
 * Potting the 8 early, or scratching on it, loses the game. Potting it on the same stroke
   as your last group ball also loses.

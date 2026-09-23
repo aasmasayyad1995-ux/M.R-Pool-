@@ -248,6 +248,12 @@ class GameController(
         // The table has just come to rest: show the cue again and line up the next shot.
         if (wasShooting && !session.isShooting && pendingShot == null) {
             cueHidden = false
+            // Everything the last shot was wound up with is let go of here. Leaving it on
+            // means the next shot quietly carries the draw the player put on the last one,
+            // with the spin pad shut and nothing on screen to say so, and leaves the cue
+            // drawn a foot back as though it were loaded when nothing is holding it.
+            power = RESTING_POWER
+            clearSpin()
             cuePullback = restingPullback(power)
             if (session.phase != GamePhase.GAME_OVER && !session.isRobotTurn &&
                 session.phase != GamePhase.BALL_IN_HAND
@@ -405,8 +411,11 @@ class GameController(
         publish()
     }
 
+    /** Takes the english off. Called when the table comes to rest, so each shot starts clean. */
     fun clearSpin() {
+        if (spin == Vec2.ZERO) return
         spin = Vec2.ZERO
+        publish()
     }
 
     /**
@@ -485,8 +494,17 @@ class GameController(
                     robotDecision = RobotDecision(null, shot)
                 }
             } catch (t: Throwable) {
-                // A failed plan must never freeze the table: tap the nearest legal ball.
-                robotDecision = RobotDecision(null, PlannedShot(Vec2.fromAngle(aimAngle), 0.4f))
+                // A failed plan must never freeze the table. Which way out that is depends
+                // on what was being planned: a shot cannot be played with ball in hand, so
+                // offering one there would leave the robot stuck on the same frame forever.
+                robotDecision = if (needsPlacement) {
+                    RobotDecision(
+                        session.nearestValidCueBallPosition(Vec2(TableGeometry.HEAD_STRING_X, 0f)),
+                        null
+                    )
+                } else {
+                    RobotDecision(null, PlannedShot(Vec2.fromAngle(aimAngle), 0.4f))
+                }
             }
         }
     }
@@ -495,7 +513,13 @@ class GameController(
         val decision = robotDecision ?: return
         robotDecision = null
         decision.placement?.let { spot ->
-            session.placeCueBall(spot)
+            // A spot the rules turn down would leave the phase on BALL_IN_HAND, and the
+            // robot would plan the same rejected spot again on every frame — a table that
+            // never moves and a robot that thinks forever. Fall back to a spot the rules
+            // have already agreed to.
+            if (!session.placeCueBall(spot)) {
+                session.placeCueBall(session.nearestValidCueBallPosition(spot))
+            }
             robotBusy = false
             return
         }
