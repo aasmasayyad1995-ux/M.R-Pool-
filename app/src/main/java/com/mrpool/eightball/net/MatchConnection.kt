@@ -57,7 +57,7 @@ class MatchConnection(
     private val main = Handler(Looper.getMainLooper())
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(ServerWake.ATTEMPT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         // Never time out the socket itself: a player lining up a shot sends nothing for a
         // while, and the server's own ping keeps the connection honest.
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -71,9 +71,20 @@ class MatchConnection(
     private var open = false
     private var closed = false
 
+    /** For [ServerWake]: how many times the socket has been tried, and since when. */
+    private var attempts = 0
+    private var firstAttemptAt = 0L
+
+    /** True once a socket has opened, which turns a failure back into a real failure. */
+    private var everOpened = false
+
+    /** A retry is on the handler's queue; connect() must not race it with a second socket. */
+    private var retryScheduled = false
+
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) = post {
             open = true
+            everOpened = true
             webSocket.send(Json.write(mapOf("op" to "hello", "name" to playerName)))
             pendingRequest?.let {
                 webSocket.send(it)
@@ -86,10 +97,19 @@ class MatchConnection(
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = post {
             Log.w(TAG, "connection failed", t)
             open = false
-            if (!closed) {
-                onState(Matchmaking.Failed(t.message ?: "Could not reach the match server"))
-                onOpponentGone?.invoke()
+            if (closed) return@post
+
+            // A socket that never opened may just have arrived while the server was waking
+            // up, which shows up as an instant refusal rather than a hang. Ask again before
+            // calling it broken; see ServerWake for why that is the only thing that helps.
+            val elapsed = System.currentTimeMillis() - firstAttemptAt
+            if (!everOpened && ServerWake.shouldRetry(attempts, elapsed)) {
+                scheduleRetry()
+                return@post
             }
+
+            onState(Matchmaking.Failed(t.message ?: "Could not reach the match server"))
+            onOpponentGone?.invoke()
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = post {
@@ -100,10 +120,26 @@ class MatchConnection(
 
     /** Opens the socket. Safe to call more than once. */
     fun connect() {
-        if (socket != null || closed) return
+        if (socket != null || closed || retryScheduled) return
         onState(Matchmaking.Connecting)
+        openSocket()
+    }
+
+    private fun openSocket() {
+        if (attempts == 0) firstAttemptAt = System.currentTimeMillis()
+        attempts++
         val request = Request.Builder().url(serverUrl).build()
         socket = client.newWebSocket(request, listener)
+    }
+
+    private fun scheduleRetry() {
+        socket = null
+        retryScheduled = true
+        main.postDelayed({
+            retryScheduled = false
+            // close() may have run while this was waiting its turn on the queue.
+            if (!closed) openSocket()
+        }, ServerWake.retryDelayMillis(attempts))
     }
 
     // ------------------------------------------------------------------ matchmaking
@@ -200,6 +236,7 @@ class MatchConnection(
     override fun close() {
         if (closed) return
         closed = true
+        retryScheduled = false
         socket?.send(Json.write(mapOf("op" to "leave")))
         socket?.close(NORMAL_CLOSE, "done")
         socket = null

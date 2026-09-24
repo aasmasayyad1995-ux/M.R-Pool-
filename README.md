@@ -325,11 +325,11 @@ here with the Android default password, which is what makes it safe to commit an
 for a release. A release build with no key configured fails and says what to set, rather
 than producing an unsigned bundle Play only rejects after the upload.
 
-Two things regularly catch people out, so they are worth reading before the first upload:
-the match server runs on a free instance that sleeps, and a reviewer who opens the game
-during that minute sees an app that does not work; and AdMob keeps the app at
-`Requires review` until it is linked to a published listing, so low ad fill at first is
-expected rather than a bug. Both are covered in the doc.
+One thing worth knowing before the first upload: AdMob keeps the app at `Requires review`
+until it is linked to a published listing, so low ad fill at first is expected rather than
+a bug. The doc covers it, along with the match server's cold start — the free instance it
+runs on sleeps, and the app now waits it out rather than reporting a failure it would have
+recovered from a few seconds later.
 
 Store art lives in `docs/store/`, and is drawn by `tools/make_icons.py` along with the
 launcher icons, so the icon on a phone and the icon on the listing cannot drift apart.

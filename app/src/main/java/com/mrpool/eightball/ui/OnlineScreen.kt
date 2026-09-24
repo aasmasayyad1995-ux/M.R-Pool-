@@ -106,7 +106,15 @@ fun OnlineScreen(
                 when (state) {
                     is Matchmaking.Hosting -> HostingCard(state.code, onCancel)
                     is Matchmaking.Searching -> Notice("Looking for an opponent…", Gold)
-                    is Matchmaking.Connecting -> Notice("Reaching the match server…", Cyan)
+                    // Says a minute out loud, because it can be. The server sleeps when
+                    // nobody is playing, and the app keeps asking while it wakes rather
+                    // than reporting a failure it would have recovered from -- so a wait
+                    // here is normal and a silent spinner would look like a broken game.
+                    is Matchmaking.Connecting -> Notice(
+                        "Reaching the match server…\nThe first connect after a quiet spell " +
+                            "can take up to a minute.",
+                        Cyan
+                    )
                     is Matchmaking.Failed -> Notice(state.reason, Crimson)
                     else -> Unit
                 }

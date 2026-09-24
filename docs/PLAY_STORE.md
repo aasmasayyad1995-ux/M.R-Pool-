@@ -180,12 +180,23 @@ or none — that is not a bug in the app.
 
 ---
 
-## Before you upload: the match server
+## The match server, and why a reviewer would have seen a broken game
 
 The game requires an internet connection by design, and online play points at a **free**
 Render instance that **sleeps after about 15 minutes of no traffic** and takes up to a
-minute to wake.
+minute to wake. A reviewer's connection is, by definition, the first one after a quiet
+spell.
 
-A Play reviewer who opens the app during that minute sees a game that does not work, and
-rejects it. Deal with this before the first upload — the choices are on the table in
-`server/README.md`; a paid instance is the one that actually removes the problem.
+Until recently that was fatal. While the instance wakes it does not answer slowly — it
+*refuses*, instantly, with an error page of its own, and the app gave up after one try and
+showed a red failure. Tapping Play Online as the first person in an hour reliably looked
+like a game that does not work.
+
+The app now keeps asking for about 75 seconds, with a widening gap between attempts, and
+says on screen that the first connect after a quiet spell can take a minute. See
+`net/ServerWake.kt`. A Cancel button sits next to it throughout.
+
+That is enough for a review, and it is the right behaviour whatever the server runs on.
+It does not make the wait pleasant for a real player, though, so if the game gets any
+traffic worth having, move the server to a paid instance that does not sleep —
+`server/README.md` has the options.
