@@ -299,8 +299,40 @@ the Android SDK installed:
 ./gradlew test                 # run the physics and rules unit tests
 ```
 
-Requirements: Android Studio / AGP 8.5, JDK 17, `compileSdk` 34, `minSdk` 24, and a device
+Requirements: Android Studio / AGP 8.13, JDK 17, `compileSdk` 36, `minSdk` 24, and a device
 or emulator with OpenGL ES 3.0.
+
+## Publishing on Google Play
+
+The repository builds the signed `.aab` Play wants, targets the API level Play currently
+requires, and carries the icon and store graphics. What it cannot carry is a Play account,
+a signing key or a card.
+
+[**docs/PLAY_STORE.md**](docs/PLAY_STORE.md) is the whole path from here to a listing, in
+order. The short version:
+
+```bash
+# once: make an upload key and put it in four GitHub secrets
+keytool -genkeypair -v -keystore upload.jks \
+  -keyalg RSA -keysize 4096 -validity 10000 -alias mrpool-upload
+```
+
+then **Actions → Play release → Run workflow**, and upload the `.aab` it produces.
+
+The upload key is never in this repository and is not recoverable: lose it and the app can
+never be updated again. `keystore/debug.keystore` is not a substitute — it is published
+here with the Android default password, which is what makes it safe to commit and useless
+for a release. A release build with no key configured fails and says what to set, rather
+than producing an unsigned bundle Play only rejects after the upload.
+
+Two things regularly catch people out, so they are worth reading before the first upload:
+the match server runs on a free instance that sleeps, and a reviewer who opens the game
+during that minute sees an app that does not work; and AdMob keeps the app at
+`Requires review` until it is linked to a published listing, so low ad fill at first is
+expected rather than a bug. Both are covered in the doc.
+
+Store art lives in `docs/store/`, and is drawn by `tools/make_icons.py` along with the
+launcher icons, so the icon on a phone and the icon on the listing cannot drift apart.
 
 ## Layout
 
