@@ -23,7 +23,13 @@ data class PlayerProfile(
      * screens that the file underneath them has changed and the old one they are holding
      * is stale.
      */
-    val avatarStamp: Long = 0L
+    val avatarStamp: Long = 0L,
+    /** Finished matches on this install. Decides when a full screen ad is due. */
+    val matchesFinished: Int = 0,
+    /** The day the rewarded-ad count below belongs to, as [BonusDay] counts days. */
+    val rewardDay: Long = -1L,
+    /** Rewarded ads watched on [rewardDay]. Meaningless on any other day. */
+    val rewardsToday: Int = 0
 ) {
     fun owns(cue: CueStick): Boolean = cue.isFree || ownedCueIds.contains(cue.id)
 
@@ -62,6 +68,22 @@ data class PlayerProfile(
         copy(playerName = raw.trim().take(MAX_NAME).ifBlank { DEFAULT_NAME })
 
     val matchesPlayed: Int get() = wins + losses
+
+    /** This profile with one more finished match on it. */
+    fun withMatchFinished(): PlayerProfile = copy(matchesFinished = matchesFinished + 1)
+
+    /**
+     * How many rewarded ads have been watched on [today].
+     *
+     * Reading it through the day rather than storing a "reset at midnight" flag means the
+     * count cannot be stale: a profile left over from last week simply reports zero.
+     */
+    fun rewardsWatchedOn(today: Long): Int = if (rewardDay == today) rewardsToday else 0
+
+    /** This profile with one more rewarded ad watched on [today]. */
+    fun withRewardWatched(today: Long): PlayerProfile =
+        if (rewardDay == today) copy(rewardsToday = rewardsToday + 1)
+        else copy(rewardDay = today, rewardsToday = 1)
 
     companion object {
         const val STARTING_COINS = 1500

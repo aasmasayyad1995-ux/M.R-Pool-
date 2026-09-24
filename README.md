@@ -206,6 +206,27 @@ on the phone and would work perfectly well on a train with no signal. They are g
 because the game is meant to be an online game. If that is ever reconsidered, the one place
 to change it is `ConnectionGate.noticeFor`.
 
+## Ads
+
+AdMob, in three places: a strip under the menus, a full screen ad every third match on the
+way back to the lobby, and a rewarded one the player presses for themselves in **Coins &
+Rewards**.
+
+**No ads during a match, in any form.** A full screen ad mid-frame, or a banner eating a
+thumb's width of the cushion, would make the game worse to play — and a game people stop
+playing earns nothing.
+
+The rules live in `AdPolicy`, away from Android and away from the ad SDK, so how often a
+player is interrupted is decided by tests rather than by feel. One of those tests is worth
+naming: a full day of watching rewarded ads (4 × 10 coins) must pay less than a couple of
+wins against the hard robot, because the moment tapping through ads beats playing, the
+matches stop mattering. The first draft of those numbers failed that test and was changed.
+
+**The build ships with Google's test ad units**, which is safe and deliberate: tapping your
+own real ads is how new publishers get their AdMob account closed. The lobby says
+**TEST ADS** while they are in use. Putting your own ids in, and the Play Store checklist
+that comes with shipping ads at all, are in [`docs/ADMOB.md`](docs/ADMOB.md).
+
 ## Sound
 
 Every sound is synthesised at runtime too, so the APK still ships without a single asset.

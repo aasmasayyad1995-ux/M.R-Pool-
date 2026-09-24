@@ -7,8 +7,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -18,12 +24,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.view.WindowCompat
 import com.mrpool.eightball.ai.RobotDifficulty
+import com.mrpool.eightball.ads.AdPolicy
+import com.mrpool.eightball.ads.AdScreen
+import com.mrpool.eightball.ads.AdsManager
 import com.mrpool.eightball.audio.GameAudio
 import com.mrpool.eightball.audio.Sound
 import com.mrpool.eightball.data.AvatarResult
@@ -43,6 +53,7 @@ import com.mrpool.eightball.net.Connectivity
 import com.mrpool.eightball.net.OnlineConfig
 import com.mrpool.eightball.net.OnlineMatch
 import com.mrpool.eightball.data.PurchaseResult
+import com.mrpool.eightball.ui.AdBanner
 import com.mrpool.eightball.ui.CueShopScreen
 import com.mrpool.eightball.ui.GameScreen
 import com.mrpool.eightball.ui.HowToPlayScreen
@@ -111,6 +122,17 @@ private fun MrPoolApp() {
     LaunchedEffect(profile.soundEnabled) {
         audio.enabled = profile.soundEnabled
     }
+
+    // The ads. AdPolicy decides when they are allowed; this only knows how to show one.
+    val ads = remember { AdsManager(context) }
+    val adRewardReady by ads.rewardReady.collectAsState()
+    DisposableEffect(ads) {
+        onDispose { ads.release() }
+    }
+    // Showing a full screen ad needs the Activity, not the application context. A plain
+    // cast works today and would quietly return null the day anything wraps the context —
+    // and a null here does not fail loudly, it just means no full screen ad ever again.
+    val activity = remember(context) { context.findActivity() }
 
     // Mr. Pool is an online game: with no connection there is nothing to play, so this
     // watches the phone's network for the whole of the app's life.
@@ -241,203 +263,251 @@ private fun MrPoolApp() {
         return
     }
 
-    when (val current = screen) {
-        Screen.Splash -> SplashScreen(onFinished = { screen = Screen.Lobby })
+    // Which kind of screen this is, for the banner rule.
+    val adScreen = when (screen) {
+        Screen.Splash -> AdScreen.SPLASH
+        is Screen.Match, is Screen.OnlineMatchScreen -> AdScreen.MATCH
+        else -> AdScreen.MENU
+    }
 
-        Screen.Lobby -> LobbyScreen(
-            profile = profile,
-            onPlayRobot = { go(Screen.RobotSetup) },
-            onPlayFriend = { go(Screen.Match(null, 0)) },
-            onPlayOnline = { go(Screen.Online) },
-            onChooseCue = { go(Screen.Cues) },
-            onChooseTable = { go(Screen.Tables) },
-            onHowToPlay = { go(Screen.HowToPlay) },
-            onWallet = { go(Screen.Wallet) },
-            onProfile = { go(Screen.Profile) },
-            onToggleSound = {
-                // The store flips its own value and audio follows profile.soundEnabled,
-                // so there is one writer and nothing to get out of step with.
-                if (store.toggleSound()) audio.play(Sound.TAP, 0.6f)
-            }
-        )
+    // The strip along the bottom of the menus. It is a sibling of the screens rather
+    // than something each of them draws, so the screens keep their own layout and the
+    // rule about where a banner may appear stays in one tested place.
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f)) {
+            when (val current = screen) {
+                Screen.Splash -> SplashScreen(onFinished = { screen = Screen.Lobby })
 
-        Screen.Cues -> CueShopScreen(
-            profile = profile,
-            onBack = { go(Screen.Lobby) },
-            onBuy = { cue ->
-                when (val result = store.buyCue(cue)) {
-                    is PurchaseResult.Success -> {
-                        audio.play(Sound.COINS)
-                        toast("${cue.name} unlocked and equipped")
+                Screen.Lobby -> LobbyScreen(
+                    profile = profile,
+                    onPlayRobot = { go(Screen.RobotSetup) },
+                    onPlayFriend = { go(Screen.Match(null, 0)) },
+                    onPlayOnline = { go(Screen.Online) },
+                    onChooseCue = { go(Screen.Cues) },
+                    onChooseTable = { go(Screen.Tables) },
+                    onHowToPlay = { go(Screen.HowToPlay) },
+                    onWallet = { go(Screen.Wallet) },
+                    onProfile = { go(Screen.Profile) },
+                    onToggleSound = {
+                        // The store flips its own value and audio follows profile.soundEnabled,
+                        // so there is one writer and nothing to get out of step with.
+                        if (store.toggleSound()) audio.play(Sound.TAP, 0.6f)
                     }
-                    is PurchaseResult.NotEnoughCoins ->
-                        toast("You need ${result.missing} more coins")
-                    PurchaseResult.AlreadyOwned -> store.equipCue(cue)
-                }
-            },
-            onEquip = { cue ->
-                store.equipCue(cue)
-                audio.play(Sound.TAP, 0.6f)
-                toast("${cue.name} equipped")
-            }
-        )
+                )
 
-        Screen.Tables -> TableShopScreen(
-            profile = profile,
-            onBack = { go(Screen.Lobby) },
-            onBuy = { table ->
-                when (val result = store.buyTable(table)) {
-                    is PurchaseResult.Success -> {
-                        audio.play(Sound.COINS)
-                        toast("${table.name} unlocked")
+                Screen.Cues -> CueShopScreen(
+                    profile = profile,
+                    onBack = { go(Screen.Lobby) },
+                    onBuy = { cue ->
+                        when (val result = store.buyCue(cue)) {
+                            is PurchaseResult.Success -> {
+                                audio.play(Sound.COINS)
+                                toast("${cue.name} unlocked and equipped")
+                            }
+                            is PurchaseResult.NotEnoughCoins ->
+                                toast("You need ${result.missing} more coins")
+                            PurchaseResult.AlreadyOwned -> store.equipCue(cue)
+                        }
+                    },
+                    onEquip = { cue ->
+                        store.equipCue(cue)
+                        audio.play(Sound.TAP, 0.6f)
+                        toast("${cue.name} equipped")
                     }
-                    is PurchaseResult.NotEnoughCoins ->
-                        toast("You need ${result.missing} more coins")
-                    PurchaseResult.AlreadyOwned -> store.equipTable(table)
-                }
-            },
-            onEquip = { table ->
-                store.equipTable(table)
-                audio.play(Sound.TAP, 0.6f)
-                toast("Now playing on ${table.name}")
-            }
-        )
-
-        Screen.Profile -> ProfileScreen(
-            profile = profile,
-            pictureProblem = pictureProblem,
-            onPickPicture = {
-                pictureProblem = null
-                pickPicture.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
-            },
-            onRemovePicture = {
-                pictureProblem = null
-                store.clearAvatar()
-            },
-            onNameChange = { store.setPlayerName(it) },
-            onBack = { go(Screen.Lobby) }
-        )
 
-        Screen.Wallet -> WalletScreen(
-            profile = profile,
-            bonusAvailable = isBonusAvailable(profile),
-            onClaimBonus = {
-                val granted = store.claimDailyBonus()
-                if (granted != null) {
-                    audio.play(Sound.COINS)
-                    toast("+$granted coins")
-                } else {
-                    toast("Already claimed today")
+                Screen.Tables -> TableShopScreen(
+                    profile = profile,
+                    onBack = { go(Screen.Lobby) },
+                    onBuy = { table ->
+                        when (val result = store.buyTable(table)) {
+                            is PurchaseResult.Success -> {
+                                audio.play(Sound.COINS)
+                                toast("${table.name} unlocked")
+                            }
+                            is PurchaseResult.NotEnoughCoins ->
+                                toast("You need ${result.missing} more coins")
+                            PurchaseResult.AlreadyOwned -> store.equipTable(table)
+                        }
+                    },
+                    onEquip = { table ->
+                        store.equipTable(table)
+                        audio.play(Sound.TAP, 0.6f)
+                        toast("Now playing on ${table.name}")
+                    }
+                )
+
+                Screen.Profile -> ProfileScreen(
+                    profile = profile,
+                    pictureProblem = pictureProblem,
+                    onPickPicture = {
+                        pictureProblem = null
+                        pickPicture.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    onRemovePicture = {
+                        pictureProblem = null
+                        store.clearAvatar()
+                    },
+                    onNameChange = { store.setPlayerName(it) },
+                    onBack = { go(Screen.Lobby) }
+                )
+
+                Screen.Wallet -> WalletScreen(
+                    profile = profile,
+                    bonusAvailable = isBonusAvailable(profile),
+                    onClaimBonus = {
+                        val granted = store.claimDailyBonus()
+                        if (granted != null) {
+                            audio.play(Sound.COINS)
+                            toast("+$granted coins")
+                        } else {
+                            toast("Already claimed today")
+                        }
+                    },
+                    adRewardsLeft = store.adRewardsLeft(),
+                    adRewardReady = adRewardReady,
+                    onWatchAd = {
+                        val host = activity
+                        if (host == null) {
+                            toast("Ads are not available right now")
+                        } else {
+                            ads.showRewarded(
+                                activity = host,
+                                // Paid only when the player watched enough of it to earn the
+                                // reward, and paid through the store so the daily cap is applied
+                                // in the one place that knows the count.
+                                onEarned = {
+                                    val paid = store.claimAdReward()
+                                    if (paid != null) {
+                                        audio.play(Sound.COINS)
+                                        toast("+$paid coins")
+                                    }
+                                },
+                                onFinished = { }
+                            )
+                        }
+                    },
+                    onBack = { go(Screen.Lobby) }
+                )
+
+                Screen.Online -> OnlineScreen(
+                    coins = profile.coins,
+                    playerName = profile.playerName,
+                    state = matchmaking,
+                    configured = OnlineConfig.isConfigured,
+                    setupHint = OnlineConfig.SETUP_HINT,
+                    onQuickMatch = { online()?.quickMatch() },
+                    onHost = { online()?.createRoom() },
+                    onJoin = { code -> online()?.joinRoom(code) },
+                    onCancel = {
+                        online()?.cancel()
+                        matchmaking = Matchmaking.Idle
+                    },
+                    onNameChange = { store.setPlayerName(it) },
+                    onBack = { leaveMatchmaking() }
+                )
+
+                is Screen.OnlineMatchScreen -> {
+                    val room = current.room
+                    // Both devices rack from the room's seed, so the two tables start identical.
+                    val onlineMatch = remember(room.code) {
+                        OnlineMatch(
+                            session = GameSession(
+                                PlayerState(
+                                    if (room.seat == Seat.ONE) profile.playerName else room.opponentName,
+                                    isRobot = false
+                                ),
+                                PlayerState(
+                                    if (room.seat == Seat.ONE) room.opponentName else profile.playerName,
+                                    isRobot = false
+                                ),
+                                ClothProperties.TOURNAMENT,
+                                Random(room.seed)
+                            ),
+                            localSeat = room.seat,
+                            isHost = room.isHost,
+                            transport = room.transport
+                        )
+                    }
+                    /** The one way out of a match, whichever way the player asks for it. */
+                    fun leaveMatch() {
+                        onlineMatch.forfeit()
+                        onlineMatch.close()
+                        connection = null
+                        go(Screen.Lobby)
+                    }
+
+                    // The back gesture used to be a plain change of screen, which left the
+                    // opponent watching a table that would never move again and the socket open
+                    // behind it. It takes the same way out as the button now.
+                    BackHandler { leaveMatch() }
+
+                    GameScreen(
+                        cue = profile.equippedCue,
+                        table = profile.equippedTable,
+                        difficulty = null,
+                        prize = 0,
+                        // Seat order, so both devices label the scoreboard the same way round.
+                        playerName = if (room.seat == Seat.ONE) profile.playerName else room.opponentName,
+                        opponentName = if (room.seat == Seat.ONE) room.opponentName else profile.playerName,
+                        avatarStamp = profile.avatarStamp,
+                        audio = audio,
+                        online = onlineMatch,
+                        soundEnabled = profile.soundEnabled,
+                        onToggleSound = { store.toggleSound() },
+                        onFinished = { },
+                        onRematchAllowed = { false },
+                        onExit = { leaveMatch() }
+                    )
                 }
-            },
-            onBack = { go(Screen.Lobby) }
-        )
 
-        Screen.Online -> OnlineScreen(
-            coins = profile.coins,
-            playerName = profile.playerName,
-            state = matchmaking,
-            configured = OnlineConfig.isConfigured,
-            setupHint = OnlineConfig.SETUP_HINT,
-            onQuickMatch = { online()?.quickMatch() },
-            onHost = { online()?.createRoom() },
-            onJoin = { code -> online()?.joinRoom(code) },
-            onCancel = {
-                online()?.cancel()
-                matchmaking = Matchmaking.Idle
-            },
-            onNameChange = { store.setPlayerName(it) },
-            onBack = { leaveMatchmaking() }
-        )
+                Screen.HowToPlay -> HowToPlayScreen(
+                    coins = profile.coins,
+                    onBack = { go(Screen.Lobby) }
+                )
 
-        is Screen.OnlineMatchScreen -> {
-            val room = current.room
-            // Both devices rack from the room's seed, so the two tables start identical.
-            val onlineMatch = remember(room.code) {
-                OnlineMatch(
-                    session = GameSession(
-                        PlayerState(
-                            if (room.seat == Seat.ONE) profile.playerName else room.opponentName,
-                            isRobot = false
-                        ),
-                        PlayerState(
-                            if (room.seat == Seat.ONE) room.opponentName else profile.playerName,
-                            isRobot = false
-                        ),
-                        ClothProperties.TOURNAMENT,
-                        Random(room.seed)
-                    ),
-                    localSeat = room.seat,
-                    isHost = room.isHost,
-                    transport = room.transport
+                Screen.RobotSetup -> RobotSetupScreen(
+                    profile = profile,
+                    onBack = { go(Screen.Lobby) },
+                    onStart = { difficulty -> startRobotMatch(difficulty) }
+                )
+
+                is Screen.Match -> GameScreen(
+                    cue = profile.equippedCue,
+                    table = profile.equippedTable,
+                    difficulty = current.difficulty,
+                    prize = current.prize,
+                    playerName = profile.playerName,
+                    opponentName = current.difficulty?.let { "${it.label} Bot" } ?: "Friend",
+                    avatarStamp = profile.avatarStamp,
+                    audio = audio,
+                    soundEnabled = profile.soundEnabled,
+                    onToggleSound = { store.toggleSound() },
+                    onFinished = { won ->
+                        if (current.difficulty != null) {
+                            val payout = store.settleMatch(won, current.prize)
+                            if (won) toast("You won $payout coins")
+                        }
+                    },
+                    // Never over the table and never over the result: the ad waits until the
+                    // player has read what happened and asked to leave.
+                    onLeavingMatch = { proceed ->
+                        val host = activity
+                        if (host != null && AdPolicy.showInterstitial(profile.matchesFinished)) {
+                            ads.showInterstitial(host, proceed)
+                        } else {
+                            proceed()
+                        }
+                    },
+                    // Nothing to pay, so another rack is always on.
+                    onRematchAllowed = { true },
+                    onExit = { go(Screen.Lobby) }
                 )
             }
-            /** The one way out of a match, whichever way the player asks for it. */
-            fun leaveMatch() {
-                onlineMatch.forfeit()
-                onlineMatch.close()
-                connection = null
-                go(Screen.Lobby)
-            }
-
-            // The back gesture used to be a plain change of screen, which left the
-            // opponent watching a table that would never move again and the socket open
-            // behind it. It takes the same way out as the button now.
-            BackHandler { leaveMatch() }
-
-            GameScreen(
-                cue = profile.equippedCue,
-                table = profile.equippedTable,
-                difficulty = null,
-                prize = 0,
-                // Seat order, so both devices label the scoreboard the same way round.
-                playerName = if (room.seat == Seat.ONE) profile.playerName else room.opponentName,
-                opponentName = if (room.seat == Seat.ONE) room.opponentName else profile.playerName,
-                avatarStamp = profile.avatarStamp,
-                audio = audio,
-                online = onlineMatch,
-                soundEnabled = profile.soundEnabled,
-                onToggleSound = { store.toggleSound() },
-                onFinished = { },
-                onRematchAllowed = { false },
-                onExit = { leaveMatch() }
-            )
         }
-
-        Screen.HowToPlay -> HowToPlayScreen(
-            coins = profile.coins,
-            onBack = { go(Screen.Lobby) }
-        )
-
-        Screen.RobotSetup -> RobotSetupScreen(
-            profile = profile,
-            onBack = { go(Screen.Lobby) },
-            onStart = { difficulty -> startRobotMatch(difficulty) }
-        )
-
-        is Screen.Match -> GameScreen(
-            cue = profile.equippedCue,
-            table = profile.equippedTable,
-            difficulty = current.difficulty,
-            prize = current.prize,
-            playerName = profile.playerName,
-            opponentName = current.difficulty?.let { "${it.label} Bot" } ?: "Friend",
-            avatarStamp = profile.avatarStamp,
-            audio = audio,
-            soundEnabled = profile.soundEnabled,
-            onToggleSound = { store.toggleSound() },
-            onFinished = { won ->
-                if (current.difficulty != null) {
-                    val payout = store.settleMatch(won, current.prize)
-                    if (won) toast("You won $payout coins")
-                }
-            },
-            // Nothing to pay, so another rack is always on.
-            onRematchAllowed = { true },
-            onExit = { go(Screen.Lobby) }
-        )
+        if (AdPolicy.showBanner(adScreen)) AdBanner()
     }
 
     // After the screens, never before them: a sibling composed earlier is drawn *under*
@@ -449,6 +519,13 @@ private fun MrPoolApp() {
         BackHandler { abandonForOffline() }
         MatchEndedOfflineDialog(onOk = { abandonForOffline() })
     }
+}
+
+/** Walks out through any wrappers to the Activity this composition is running in. */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private fun isBonusAvailable(profile: PlayerProfile): Boolean =

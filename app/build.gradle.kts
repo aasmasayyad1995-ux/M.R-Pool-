@@ -23,6 +23,44 @@ android {
             "\"${project.findProperty("matchServerUrl") ?: ""}\""
         )
 
+        // AdMob.
+        //
+        // The defaults are Google's own test units, published by Google for exactly this
+        // and safe to build, run and share. Your real ids go in as gradle properties.
+        //
+        // NEVER test with your real ad units. Google reads your own taps on your own ads
+        // as invalid traffic and closes AdMob accounts for it. That is why the test ids
+        // are the default rather than something you have to remember to switch to.
+        //
+        // None of these are secrets — every shipped Android app carries them in the clear —
+        // so they are properties for convenience, not for safety.
+        val admobAppId = (project.findProperty("admobAppId") as String?)
+            ?: "ca-app-pub-3940256099942544~3347511713"
+        manifestPlaceholders["admobAppId"] = admobAppId
+        buildConfigField("String", "ADMOB_APP_ID", "\"$admobAppId\"")
+        buildConfigField(
+            "String",
+            "ADMOB_BANNER_UNIT",
+            "\"${project.findProperty("admobBannerUnit") ?: "ca-app-pub-3940256099942544/6300978111"}\""
+        )
+        buildConfigField(
+            "String",
+            "ADMOB_INTERSTITIAL_UNIT",
+            "\"${project.findProperty("admobInterstitialUnit") ?: "ca-app-pub-3940256099942544/1033173712"}\""
+        )
+        buildConfigField(
+            "String",
+            "ADMOB_REWARDED_UNIT",
+            "\"${project.findProperty("admobRewardedUnit") ?: "ca-app-pub-3940256099942544/5224354917"}\""
+        )
+        // True while the ids above are Google's test ones, so the app can say so on screen
+        // rather than leaving anybody wondering why the ads are all for "Test Ad".
+        buildConfigField(
+            "boolean",
+            "ADMOB_TEST_IDS",
+            (project.findProperty("admobAppId") == null).toString()
+        )
+
         // Shown in the corner of the lobby. CI passes the commit it built, so a screenshot
         // always says which build it came from — without that, a phone quietly running an
         // older install looks exactly like a fix that did not work.
@@ -100,6 +138,7 @@ dependencies {
 
     // Online play. The rest of the game never touches this.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.android.gms:play-services-ads:23.2.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))

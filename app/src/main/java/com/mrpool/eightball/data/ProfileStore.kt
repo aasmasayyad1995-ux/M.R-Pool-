@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.net.Uri
+import com.mrpool.eightball.ads.AdPolicy
 import com.mrpool.eightball.ai.RobotDifficulty
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,6 +90,7 @@ class ProfileStore(context: Context) {
         val payout = if (won) prize else 0
         update(
             p.copy(
+                matchesFinished = p.matchesFinished + 1,
                 coins = p.coins + payout,
                 wins = if (won) p.wins + 1 else p.wins,
                 losses = if (won) p.losses else p.losses + 1,
@@ -111,6 +113,30 @@ class ProfileStore(context: Context) {
         )
         return PlayerProfile.DAILY_BONUS
     }
+
+    // ------------------------------------------------------------------- rewarded ads
+
+    /**
+     * Counts a rewarded ad and pays for it.
+     *
+     * The cap is checked here rather than trusted from the screen, so a second tap while
+     * the first ad is still closing cannot pay twice. Returns the coins paid, or null when
+     * the player has already had their allowance today.
+     */
+    @Synchronized
+    fun claimAdReward(nowMillis: Long = System.currentTimeMillis()): Int? {
+        val today = BonusDay.local(nowMillis)
+        val p = current
+        if (!AdPolicy.canWatchReward(p.rewardsWatchedOn(today))) return null
+        update(
+            p.withRewardWatched(today).let { it.copy(coins = it.coins + AdPolicy.REWARD_COINS) }
+        )
+        return AdPolicy.REWARD_COINS
+    }
+
+    /** How many rewarded ads the player may still watch today. */
+    fun adRewardsLeft(nowMillis: Long = System.currentTimeMillis()): Int =
+        AdPolicy.rewardsLeft(current.rewardsWatchedOn(BonusDay.local(nowMillis)))
 
     /** The name the opponent sees online. */
     fun setPlayerName(name: String) {
@@ -208,6 +234,9 @@ class ProfileStore(context: Context) {
             .putBoolean(KEY_SOUND, p.soundEnabled)
             .putString(KEY_NAME, p.playerName)
             .putLong(KEY_AVATAR_STAMP, p.avatarStamp)
+            .putInt(KEY_MATCHES, p.matchesFinished)
+            .putLong(KEY_REWARD_DAY, p.rewardDay)
+            .putInt(KEY_REWARDS_TODAY, p.rewardsToday)
             .apply()
     }
 
@@ -226,7 +255,10 @@ class ProfileStore(context: Context) {
             lastBonusDay = prefs.getLong(KEY_BONUS_DAY, -1L),
             soundEnabled = prefs.getBoolean(KEY_SOUND, true),
             playerName = prefs.getString(KEY_NAME, "Player") ?: "Player",
-            avatarStamp = prefs.getLong(KEY_AVATAR_STAMP, 0L)
+            avatarStamp = prefs.getLong(KEY_AVATAR_STAMP, 0L),
+            matchesFinished = prefs.getInt(KEY_MATCHES, 0),
+            rewardDay = prefs.getLong(KEY_REWARD_DAY, -1L),
+            rewardsToday = prefs.getInt(KEY_REWARDS_TODAY, 0)
         )
     }
 
@@ -248,6 +280,9 @@ class ProfileStore(context: Context) {
         private const val KEY_SOUND = "sound_enabled"
         private const val KEY_NAME = "player_name"
         private const val KEY_AVATAR_STAMP = "avatar_stamp"
+        private const val KEY_MATCHES = "matches_finished"
+        private const val KEY_REWARD_DAY = "reward_day"
+        private const val KEY_REWARDS_TODAY = "rewards_today"
 
         @Volatile
         private var instance: ProfileStore? = null

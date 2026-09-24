@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Online play only. The robot and the two player game work offline. -->
+    <!-- The whole game needs a connection; see README "Needing a connection". -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
@@ -17,6 +17,15 @@
         android:supportsRtl="true"
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.MRPool">
+
+        <!--
+            AdMob needs the app id in the manifest or the SDK throws on start up. The value
+            comes from a gradle property; with none set it is Google's published test id.
+            This is not a secret: every shipped Android app carries it in the clear.
+        -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${admobAppId}" />
 
         <activity
             android:name=".MainActivity"
