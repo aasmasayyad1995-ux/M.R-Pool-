@@ -80,6 +80,34 @@ class AdPolicyTest {
     }
 
     @Test
+    fun `the daily bonus is paid for by watching the ad through`() {
+        assertTrue(
+            "watched it, so it is owed",
+            AdPolicy.bonusOwed(adWasShown = true, adWasWatched = true)
+        )
+    }
+
+    @Test
+    fun `backing out of an ad that played pays no bonus`() {
+        assertFalse(
+            "the player chose to stop watching; the button is still there",
+            AdPolicy.bonusOwed(adWasShown = true, adWasWatched = false)
+        )
+    }
+
+    @Test
+    fun `an ad that never appeared does not cost the player their bonus`() {
+        // The one that matters. A player who pressed the button and was shown nothing has
+        // done everything asked of them. Losing the daily bonus because an advert did not
+        // fill would be punishing them for our failure — and it is the complaint that
+        // arrives first, because ad fill is worst in exactly the places phones are worst.
+        assertTrue(
+            "no ad was shown, so nothing was asked and the bonus stands",
+            AdPolicy.bonusOwed(adWasShown = false, adWasWatched = false)
+        )
+    }
+
+    @Test
     fun `the count left never goes negative`() {
         assertEquals(AdPolicy.REWARDS_PER_DAY, AdPolicy.rewardsLeft(0))
         assertEquals(0, AdPolicy.rewardsLeft(AdPolicy.REWARDS_PER_DAY))

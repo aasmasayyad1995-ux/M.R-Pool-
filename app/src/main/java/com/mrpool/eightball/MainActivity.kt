@@ -358,12 +358,35 @@ private fun MrPoolApp() {
                     profile = profile,
                     bonusAvailable = isBonusAvailable(profile),
                     onClaimBonus = {
-                        val granted = store.claimDailyBonus()
-                        if (granted != null) {
-                            audio.play(Sound.COINS)
-                            toast("+$granted coins")
+                        // The daily bonus is behind an ad now. Paid when the ad is
+                        // watched through — and paid anyway when no ad could be shown at
+                        // all, because a player who did what was asked should not lose
+                        // their bonus to an advert that never turned up. Backing out of
+                        // an ad that *did* play pays nothing; the button is still there.
+                        fun payBonus() {
+                            val granted = store.claimDailyBonus()
+                            if (granted != null) {
+                                audio.play(Sound.COINS)
+                                toast("+$granted coins")
+                            } else {
+                                toast("Already claimed today")
+                            }
+                        }
+
+                        val host = activity
+                        if (host == null) {
+                            payBonus()
                         } else {
-                            toast("Already claimed today")
+                            var watched = false
+                            ads.showRewarded(
+                                activity = host,
+                                onEarned = { watched = true },
+                                onFinished = { shown ->
+                                    if (AdPolicy.bonusOwed(adWasShown = shown, adWasWatched = watched)) {
+                                        payBonus()
+                                    }
+                                }
+                            )
                         }
                     },
                     adRewardsLeft = store.adRewardsLeft(),

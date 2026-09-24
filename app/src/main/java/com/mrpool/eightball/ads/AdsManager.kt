@@ -154,14 +154,23 @@ class AdsManager(context: Context) {
      * Shows a rewarded ad.
      *
      * [onEarned] runs only if the player actually watched enough of it to earn the reward,
-     * which is the SDK's decision and not ours. [onFinished] always runs, earned or not, so
-     * the screen can put its button back.
+     * which is the SDK's decision and not ours.
+     *
+     * [onFinished] always runs, earned or not, and is told whether an ad was actually put
+     * on screen. That matters: "the player skipped it" and "there was nothing to show" look
+     * identical from the outside and are owed different things, and a caller left to work
+     * it out from whether an ad happened to be loaded a moment earlier would sometimes get
+     * it wrong.
      */
-    fun showRewarded(activity: Activity, onEarned: () -> Unit, onFinished: () -> Unit) {
+    fun showRewarded(
+        activity: Activity,
+        onEarned: () -> Unit,
+        onFinished: (shown: Boolean) -> Unit
+    ) {
         val ad = rewarded
         if (released || ad == null) {
             loadRewarded()
-            onFinished()
+            onFinished(false)
             return
         }
         rewarded = null
@@ -172,13 +181,14 @@ class AdsManager(context: Context) {
             override fun onAdDismissedFullScreenContent() {
                 loadRewarded()
                 if (earned) onEarned()
-                onFinished()
+                onFinished(true)
             }
 
             override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                // Loaded but refused to play, so nothing was asked of the player.
                 Log.w(TAG, "rewarded ad would not show: ${error.message}")
                 loadRewarded()
-                onFinished()
+                onFinished(false)
             }
         }
         runCatching {
@@ -188,7 +198,7 @@ class AdsManager(context: Context) {
         }.onFailure {
             Log.w(TAG, "could not show the rewarded ad", it)
             loadRewarded()
-            onFinished()
+            onFinished(false)
         }
     }
 

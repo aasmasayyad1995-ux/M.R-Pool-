@@ -98,8 +98,11 @@ fun WalletScreen(
                     )
                 ) {
                     Text(
-                        if (bonusAvailable) "Claim daily bonus +${PlayerProfile.DAILY_BONUS}"
-                        else "Daily bonus claimed — come back tomorrow",
+                        if (bonusAvailable) {
+                            "Watch an ad for your daily bonus +${PlayerProfile.DAILY_BONUS}"
+                        } else {
+                            "Daily bonus claimed — come back tomorrow"
+                        },
                         color = if (bonusAvailable) Ink else Chalk.copy(alpha = 0.6f),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(vertical = 6.dp)
