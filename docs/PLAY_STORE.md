@@ -18,7 +18,7 @@ every release.
 | Edge to edge | Handled in `MainActivity`, so API 35+ does not put buttons under the navigation bar |
 | Launcher icon | PNGs for Android 7, adaptive icon for Android 8+ |
 | Store graphics | `docs/store/icon-512.png`, `docs/store/feature-graphic-1024x500.png` |
-| Privacy policy | `docs/privacy-policy.html` — **one line still to fill in** |
+| Privacy policy | `docs/privacy-policy.html` — written and filled in; needs GitHub Pages turning on |
 
 ---
 
@@ -86,12 +86,12 @@ that Play and every phone will accept as genuinely yours.
 Play requires a working privacy policy URL. This repo has the policy written; it needs
 your contact address and somewhere to live.
 
-1. Open `docs/privacy-policy.html` and replace `REPLACE-WITH-YOUR-EMAIL@example.com`
-   with the same address you will put on the listing. It is shown publicly, so use one
-   you are happy for strangers to see.
-2. In the repository: **Settings → Pages → Source: Deploy from a branch**, branch `main`,
+The contact address is already filled in. It is shown publicly on the listing, so if it
+ever needs to change, it is the one `mailto:` line at the bottom of the file.
+
+1. In the repository: **Settings → Pages → Source: Deploy from a branch**, branch `main`,
    folder `/docs`, then Save.
-3. A minute later the policy is live at
+2. A minute later the policy is live at
    `https://aasmasayyad1995-ux.github.io/M.R-Pool-/privacy-policy.html`.
    Open it and check before you paste it into Play.
 
