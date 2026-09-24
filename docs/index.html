@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mr. Pool 3D</title>
+<meta name="description" content="8 ball pool in 3D for Android. Play a friend online or take on the bots.">
+<style>
+  :root { color-scheme: light dark; --ink:#0b1416; --felt:#0B6E3A; --gold:#F4C542; }
+  * { box-sizing: border-box; }
+  body {
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 2.5rem 1rem 4rem; color: #16201f; background: #fbfdfc;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6efea; background: var(--ink); }
+    .card { background: #12222400; border-color: #274046; }
+    a.btn.ghost { color: #e6efea; border-color: #2d4a51; }
+  }
+  main { max-width: 34rem; margin: 0 auto; }
+  header { text-align: center; }
+  img.icon { width: 104px; height: 104px; border-radius: 24px; display: block; margin: 0 auto 1rem; }
+  h1 { font-size: 2rem; margin: 0 0 .15rem; }
+  .tag { color: var(--felt); font-weight: 600; margin: 0 0 .1rem; }
+  @media (prefers-color-scheme: dark) { .tag { color: var(--gold); } }
+  .sub { color: #5d7570; margin-top: .2rem; }
+  ul.feat { list-style: none; padding: 0; margin: 2rem 0; }
+  ul.feat li { padding: .55rem 0 .55rem 1.6rem; position: relative; }
+  ul.feat li::before { content: "🎱"; position: absolute; left: 0; }
+  .btns { display: flex; flex-direction: column; gap: .7rem; margin: 2rem 0; }
+  a.btn {
+    display: block; text-align: center; padding: .85rem 1rem; border-radius: 12px;
+    text-decoration: none; font-weight: 600; background: var(--felt); color: #fff;
+    border: 1px solid transparent;
+  }
+  a.btn.ghost { background: transparent; color: #16201f; border-color: #cfdcd7; font-weight: 500; }
+  .note { font-size: .92rem; color: #5d7570; border-left: 3px solid var(--felt); padding-left: .9rem; }
+  footer { margin-top: 3rem; font-size: .88rem; color: #5d7570; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+
+  <header>
+    <img class="icon" src="store/icon-512.png" alt="">
+    <p class="tag">8 Ball Pool</p>
+    <h1>Mr. Pool 3D</h1>
+    <p class="sub">A pool table, in 3D, on Android.</p>
+  </header>
+
+  <ul class="feat">
+    <li>Play a friend online, or anybody waiting for a quick match</li>
+    <li>Three robots to beat, from gentle to unkind</li>
+    <li>12 cues and 20 tables, won by playing</li>
+    <li>Free. Nothing in the game costs money</li>
+  </ul>
+
+  <div class="btns">
+    <a class="btn" href="privacy-policy.html">Privacy policy</a>
+    <a class="btn ghost" href="https://github.com/aasmasayyad1995-ux/M.R-Pool-">Source code on GitHub</a>
+    <a class="btn ghost" href="https://github.com/aasmasayyad1995-ux/M.R-Pool-/releases/download/latest/app-debug.apk">Download the test build (.apk)</a>
+  </div>
+
+  <p class="note">
+    Coins are won by playing or by watching an ad. They cannot be bought, have no cash
+    value, and cannot be exchanged for money. There are no in-app purchases.
+  </p>
+
+  <footer>Made with care. Contact: <a href="mailto:aasmasayyad1995@gmail.com">aasmasayyad1995@gmail.com</a></footer>
+
+</main>
+</body>
+</html>
