@@ -9,3 +9,9 @@ captures/
 .cxx/
 server/build/
 server/.gradle/
+
+# Upload keys. The one in keystore/ is the public debug key and is meant to be here;
+# a real signing key must never be committed, so everything else of the kind is ignored.
+*.jks
+*.keystore
+!keystore/debug.keystore

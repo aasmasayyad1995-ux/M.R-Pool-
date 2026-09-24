@@ -1,16 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    The eight ball, for launchers on API 26 and up.
+
+    It is deliberately the same drawing as the PNGs in res/mipmap-*, which are what
+    Android 7.0 and 7.1 use, as they have no adaptive icons. Before those PNGs
+    existed this file was the only launcher icon in the app, so on those two versions
+    there was none at all. Both come out of tools/make_icons.py; change the numbers
+    there and here together.
+
+    The ball sits inside the middle 72x72 of this 108x108 canvas, which is the only
+    part of an adaptive icon a launcher is guaranteed not to crop.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- The ball. -->
     <path
         android:fillColor="#101010"
-        android:pathData="M54,26a28,28 0,1 0,0.1 0z" />
+        android:pathData="M26,54 a28,28 0 1,0 56,0 a28,28 0 1,0 -56,0 z" />
+
+    <!-- Light coming from up and to the left, so it reads as a sphere. -->
+    <path
+        android:fillColor="#38FFFFFF"
+        android:pathData="M38.4,42.8 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0 z" />
+
+    <!-- The white spot. -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,38a12,12 0,1 0,0.1 0z" />
+        android:pathData="M41.1,54 a12.9,12.9 0 1,0 25.8,0 a12.9,12.9 0 1,0 -25.8,0 z" />
+
+    <!-- The 8, as two rings: an even-odd fill leaves the middles open, so it stays a
+         shape rather than a font that may not exist on whatever draws this next. -->
     <path
         android:fillColor="#101010"
-        android:pathData="M50.4,56.2l1.2,-9.6h4.8l1.2,9.6z" />
+        android:fillType="evenOdd"
+        android:pathData="M48.85,48.85 a5.15,5.15 0 1,0 10.3,0 a5.15,5.15 0 1,0 -10.3,0 z
+                          M51.43,48.85 a2.57,2.57 0 1,0 5.14,0 a2.57,2.57 0 1,0 -5.14,0 z" />
+    <path
+        android:fillColor="#101010"
+        android:fillType="evenOdd"
+        android:pathData="M47.3,59.15 a6.7,6.7 0 1,0 13.4,0 a6.7,6.7 0 1,0 -13.4,0 z
+                          M49.88,59.15 a4.12,4.12 0 1,0 8.24,0 a4.12,4.12 0 1,0 -8.24,0 z" />
 </vector>

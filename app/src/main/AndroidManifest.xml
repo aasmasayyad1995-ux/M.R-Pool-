@@ -33,6 +33,23 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode"
             android:theme="@style/Theme.MRPool">
+
+            <!--
+                Keep the landscape lock above on tablets and unfolded foldables.
+
+                Anything targeting API 36 has screenOrientation ignored on displays
+                600dp wide or more, so without this the game opens portrait on a
+                tablet: a table built around a landscape view, squeezed into a tall
+                window, with a HUD laid out along edges that are no longer there.
+
+                This opt-out is temporary by design. It stops working the day
+                targetSdk goes to 37, and the real answer by then is a layout that
+                works either way up rather than one that refuses to turn.
+            -->
+            <property
+                android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY"
+                android:value="true" />
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

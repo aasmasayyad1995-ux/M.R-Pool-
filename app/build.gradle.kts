@@ -3,16 +3,45 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// The upload key that signs what goes to Google Play.
+//
+// It is never in this repository, never printed, and not recoverable: losing it means the
+// app can never be updated again, so the one copy that exists lives with whoever owns the
+// Play account. Read from gradle properties, falling back to the environment so CI can
+// pass it in from secrets.
+//
+// When nothing supplies a key the release build must NOT fall back to the debug key in
+// `signingConfigs` below. That key is published in this repository with the Android default
+// password, so anything it signs can be forged by anybody.
+fun secret(property: String, env: String): String? =
+    (project.findProperty(property) as String?) ?: System.getenv(env)
+
+val uploadStore = secret("releaseStoreFile", "RELEASE_STORE_FILE")
+val uploadStorePassword = secret("releaseStorePassword", "RELEASE_STORE_PASSWORD")
+val uploadKeyAlias = secret("releaseKeyAlias", "RELEASE_KEY_ALIAS")
+val uploadKeyPassword = secret("releaseKeyPassword", "RELEASE_KEY_PASSWORD")
+val canSignRelease =
+    uploadStore != null &&
+        uploadStorePassword != null &&
+        uploadKeyAlias != null &&
+        uploadKeyPassword != null
+
 android {
     namespace = "com.mrpool.eightball"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.mrpool.eightball"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Google Play has required API 36 of new apps and updates since 31 Aug 2026.
+        // Raising it is not just a number: from API 35 the app is edge to edge whether
+        // it asks or not, which is why MainActivity pads for the system bars itself.
+        targetSdk = 36
+        // Play refuses an upload whose versionCode it has seen before, and refuses one
+        // lower than the highest it already has. The number here is the floor; CI passes
+        // -PversionCode so a release never depends on somebody remembering to bump it.
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Where the match server lives. Run server/ locally or deploy it, then point this
@@ -87,6 +116,15 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+
+        if (canSignRelease) {
+            create("release") {
+                storeFile = file(uploadStore!!)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -99,6 +137,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (canSignRelease) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -156,4 +197,29 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// Without a key, `bundleRelease` still succeeds -- it just produces an unsigned bundle.
+// Play then rejects it at upload, long after the build, with nothing in the build output
+// saying why. Refuse at configuration time instead, where the message can say what to set.
+if (!canSignRelease) {
+    val wantsRelease = gradle.startParameter.taskNames.any {
+        it.endsWith("bundleRelease") || it.endsWith("assembleRelease")
+    }
+    if (wantsRelease) {
+        throw GradleException(
+            """
+            A release build needs the upload key, and none is configured.
+
+            Pass all four, as -P properties or as the environment variables in brackets:
+              releaseStoreFile      [RELEASE_STORE_FILE]      absolute path to the .jks
+              releaseStorePassword  [RELEASE_STORE_PASSWORD]
+              releaseKeyAlias       [RELEASE_KEY_ALIAS]
+              releaseKeyPassword    [RELEASE_KEY_PASSWORD]
+
+            See docs/PLAY_STORE.md. The debug key in keystore/ is not an option: it is
+            published in this repository, so anything it signs can be forged.
+            """.trimIndent()
+        )
+    }
 }
