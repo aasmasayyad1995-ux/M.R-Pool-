@@ -66,14 +66,22 @@ jobs:
           # Never echo the file or its passwords; just prove it decoded to something.
           test -s "$RUNNER_TEMP/signing/upload.jks"
 
+      # Both values reach the shell as environment variables rather than being pasted
+      # into the script by the expression syntax. A value pasted in is script, not data,
+      # and these two are typed in by hand at the point the workflow is started.
       - name: Work out the version
         id: version
+        env:
+          IN_CODE: ${{ inputs.versionCode }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          CODE='${{ inputs.versionCode }}'
-          if [ -z "$CODE" ]; then CODE='${{ github.run_number }}'; fi
+          CODE="${IN_CODE:-}"
+          if [ -z "$CODE" ]; then CODE="$RUN_NUMBER"; fi
+          case "$CODE" in
+            ''|*[!0-9]*) echo "::error::versionCode must be a whole number, got '$CODE'"; exit 1 ;;
+          esac
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
-          echo "Building versionCode $CODE, versionName ${{ inputs.versionName }}"
 
       # The AdMob ids and server address are the same public values build.yml uses. The
       # signing details come in as environment variables so they never appear in a command
@@ -84,10 +92,12 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_NAME: ${{ inputs.versionName }}
         run: |
           ./gradlew bundleRelease assembleRelease \
-            -PversionCode=${{ steps.version.outputs.code }} \
-            -PversionName='${{ inputs.versionName }}' \
+            -PversionCode="$VERSION_CODE" \
+            -PversionName="$VERSION_NAME" \
             -PbuildId=${{ github.sha }} \
             -PmatchServerUrl=wss://mrpool-server.onrender.com/ws \
             -PadmobAppId=ca-app-pub-5938763112022930~7070476193 \
