@@ -227,10 +227,14 @@ naming: a full day of watching rewarded ads (4 × 10 coins) must pay less than a
 wins against the hard robot, because the moment tapping through ads beats playing, the
 matches stop mattering. The first draft of those numbers failed that test and was changed.
 
-**The build ships with Google's test ad units**, which is safe and deliberate: tapping your
-own real ads is how new publishers get their AdMob account closed. The lobby says
-**TEST ADS** while they are in use. Putting your own ids in, and the Play Store checklist
-that comes with shipping ads at all, are in [`docs/ADMOB.md`](docs/ADMOB.md).
+**Published builds carry this app's real ad units**, passed in by CI; the defaults in
+`app/build.gradle.kts` are Google's test ones, so a build made without them still runs and
+says **TEST ADS** in the lobby rather than quietly earning nothing.
+
+**Do not tap the ads in a real build.** Google reads taps on your own ads as invalid traffic
+and closes AdMob accounts for it — it is the commonest way a new publisher loses theirs. The
+ids, and the Play Store checklist that comes with shipping ads at all, are in
+[`docs/ADMOB.md`](docs/ADMOB.md).
 
 ## Sound
 

@@ -36,11 +36,21 @@ jobs:
       #
       # matchServerUrl points the app at the deployed match server, which is what makes
       # "Play Online" work in the published build. It is a public address, not a secret.
+      # The AdMob ids are the real ones for this app. They are not secrets — every
+      # shipped Android app carries them in the clear — so they live here rather than in
+      # repository secrets, where they would be a nuisance for no safety at all.
+      #
+      # Passing admobAppId is also what turns off the "TEST ADS" label in the lobby, so
+      # a build either has real ids and says nothing, or has test ids and says so.
       - name: Build the APK
         run: |
           ./gradlew assembleDebug \
             -PbuildId=${{ github.sha }} \
             -PmatchServerUrl=wss://mrpool-server.onrender.com/ws \
+            -PadmobAppId=ca-app-pub-5938763112022930~7070476193 \
+            -PadmobBannerUnit=ca-app-pub-5938763112022930/1196167131 \
+            -PadmobInterstitialUnit=ca-app-pub-5938763112022930/5559841563 \
+            -PadmobRewardedUnit=ca-app-pub-5938763112022930/5727362529 \
             --stacktrace
 
       - name: Attach the APK to this run

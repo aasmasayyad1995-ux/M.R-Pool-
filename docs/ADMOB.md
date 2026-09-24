@@ -16,9 +16,36 @@ safe to build, run and share, and they serve real-looking ads marked "Test Ad".
 The lobby says **TEST ADS** in the corner while the test ids are in use, so a build can
 never quietly be the wrong one.
 
-## Putting your own ids in
+## The ids this repository builds with
 
-Create the app and three ad units in [AdMob](https://apps.admob.com), then build with:
+The real ones, wired into `.github/workflows/build.yml`, so every published build carries
+them:
+
+| | |
+| --- | --- |
+| App ID | `ca-app-pub-5938763112022930~7070476193` |
+| Banner | `ca-app-pub-5938763112022930/1196167131` |
+| Interstitial | `ca-app-pub-5938763112022930/5559841563` |
+| Rewarded | `ca-app-pub-5938763112022930/5727362529` |
+
+They are not secrets — every shipped Android app carries them in the clear — so they are in
+the workflow rather than in repository secrets, where they would be a nuisance for no safety
+at all.
+
+Because `admobAppId` is now set, the lobby no longer prints **TEST ADS**. A build either has
+real ids and says nothing, or has test ids and says so.
+
+> **The ads in this build are real.** Do not tap them, and do not let anybody else tap them
+> to "see if it works". Google reads taps on your own ads as invalid traffic and closes
+> AdMob accounts for it. Look at them; leave them alone.
+>
+> If you want to be able to tap freely while testing, the fix is to register the phone as a
+> test device — then the real ad units serve test ads to that phone only. It needs the
+> device's AdMob id, which the app prints to logcat the first time it asks for an ad.
+
+## Putting different ids in
+
+To build with different ids — a second app, or back to the test units — pass them in:
 
 ```bash
 ./gradlew assembleRelease \
