@@ -209,8 +209,13 @@ to change it is `ConnectionGate.noticeFor`.
 ## Ads
 
 AdMob, in three places: a strip under the menus, a full screen ad every third match on the
-way back to the lobby, and a rewarded one the player presses for themselves in **Coins &
-Rewards**.
+way back to the lobby, and rewarded ones in **Coins & Rewards** — one the player presses for
+coins, and one that pays for the daily bonus.
+
+If no ad turns up, the daily bonus is paid anyway: a player who pressed the button and was
+shown nothing has done what was asked, and taking their bonus away because an advert did not
+fill would be punishing them for our failure. Backing out of an ad that *did* play is a
+choice, and pays nothing.
 
 **No ads during a match, in any form.** A full screen ad mid-frame, or a banner eating a
 thumb's width of the cushion, would make the game worse to play — and a game people stop

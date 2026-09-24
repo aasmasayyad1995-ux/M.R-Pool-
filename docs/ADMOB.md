@@ -47,10 +47,17 @@ In AdMob the three units are:
 | **Banner** | A 50dp strip under the menus — lobby, shops, wallet, profile | Always on those screens. **Never** over the table and never over the studio card. |
 | **Interstitial** | On the way from a finished match back to the lobby | Every third finished match, and never the first. The table is never interrupted and the result is never covered. |
 | **Rewarded** | A button in **Coins & Rewards** | Only when the player presses it. Four a day, 10 coins each. |
+| **Rewarded** | The daily bonus, in **Coins & Rewards** | The 50 coin daily bonus is paid for by watching an ad. Once a day, and it does not count against the four above. |
 
 The rules are in `AdPolicy`, which holds no Android types and is tested — including a test
 that a day of watching ads pays less than a couple of wins against the hard robot, so the
 matches still mean something.
+
+**If no ad turns up, the daily bonus is paid anyway.** A player who pressed the button and
+was shown nothing has done everything asked of them, and taking their bonus away because an
+advert did not fill would be punishing them for our failure — and it is the complaint that
+arrives first, because fill is worst in exactly the places phones are worst. Backing out of
+an ad that *did* play is a choice: it pays nothing, and the button is still there.
 
 ## Still yours to do before Play Store
 

@@ -69,6 +69,20 @@ object AdPolicy {
     /** How many are left today, never below zero. */
     fun rewardsLeft(watchedToday: Int): Int = (REWARDS_PER_DAY - watchedToday).coerceAtLeast(0)
 
+    // -------------------------------------------------------------------- daily bonus
+
+    /**
+     * Whether the daily bonus is owed after an attempt to show an ad for it.
+     *
+     * Two ways to be owed it, and the second is the one worth writing down: a player who
+     * pressed the button and was shown nothing has done everything that was asked of
+     * them, and taking their bonus away because an advert did not turn up would be
+     * punishing them for our failure. Backing out of an ad that *did* play is different —
+     * that is a choice, it pays nothing, and the button is still there to press again.
+     */
+    fun bonusOwed(adWasShown: Boolean, adWasWatched: Boolean): Boolean =
+        adWasWatched || !adWasShown
+
     // ------------------------------------------------------------------------ banner
 
     /**
