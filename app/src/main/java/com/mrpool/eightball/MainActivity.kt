@@ -14,7 +14,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -30,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.mrpool.eightball.ai.RobotDifficulty
 import com.mrpool.eightball.ads.AdPolicy
 import com.mrpool.eightball.ads.AdScreen
@@ -72,11 +76,39 @@ import kotlin.random.Random
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Edge to edge, deliberately and on every Android version.
+        //
+        // Android 15 made it compulsory for anything targeting API 35 or newer: from there
+        // on `setDecorFitsSystemWindows(window, true)` is ignored, and so are the status
+        // and navigation bar colours in themes.xml. Asking for it here instead means the
+        // layout is the same shape on Android 7 as on Android 16, rather than quietly
+        // changing under the app the day targetSdk goes up.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // The bars are transparent now, with the ink window background showing through, so
+        // their icons have to be the light set or they vanish into it.
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             MrPoolTheme {
-                MrPoolApp()
+                // Edge to edge means the app owns the whole screen, bars included, so it
+                // is now the app's job to keep anything touchable out from under them.
+                // This one Box does it for every screen: putting it inside MrPoolApp would
+                // have missed OfflineScreen, which returns before the rest of the layout.
+                //
+                // In landscape the gesture bar and the camera cutout are down the sides,
+                // which is exactly where the cue controls and the ad strip live.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                ) {
+                    MrPoolApp()
+                }
             }
         }
     }

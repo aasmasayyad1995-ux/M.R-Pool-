@@ -1,0 +1,133 @@
+name: Play release
+
+# Builds the signed Android App Bundle that gets uploaded to Google Play.
+#
+# Deliberately manual. Every push building a release would burn versionCodes -- Play never
+# lets a number be reused -- and would make it easy to ship a half-finished main by accident.
+# Run it from the Actions tab when a release is actually wanted.
+#
+# Needs four repository secrets. See docs/PLAY_STORE.md for how to make them:
+#   RELEASE_KEYSTORE_BASE64  the upload .jks, base64 encoded
+#   RELEASE_STORE_PASSWORD   the keystore password
+#   RELEASE_KEY_ALIAS        the key alias inside it
+#   RELEASE_KEY_PASSWORD     the key's own password
+#
+# Unlike the AdMob ids in build.yml, these ARE secrets. Anybody holding them can sign an
+# update that Play and every phone will accept as genuinely yours.
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: 'Version shown to players, e.g. 1.0'
+        required: true
+        default: '1.0'
+      versionCode:
+        description: 'Play upload number. Must be higher than every previous upload. Blank uses this run number.'
+        required: false
+        default: ''
+
+jobs:
+  bundle:
+    name: Signed bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - run: chmod +x gradlew
+
+      # A release that fails its tests should never reach a store listing.
+      - name: Unit tests
+        run: ./gradlew testReleaseUnitTest --stacktrace
+
+      # Secrets cannot hold binary, so the keystore travels as base64 and is written to a
+      # file outside the checkout -- inside it, a stray `git add -A` in a later step could
+      # commit the signing key.
+      - name: Restore the upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 is not set. See docs/PLAY_STORE.md."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/signing"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/upload.jks"
+          # Never echo the file or its passwords; just prove it decoded to something.
+          test -s "$RUNNER_TEMP/signing/upload.jks"
+
+      - name: Work out the version
+        id: version
+        run: |
+          set -euo pipefail
+          CODE='${{ inputs.versionCode }}'
+          if [ -z "$CODE" ]; then CODE='${{ github.run_number }}'; fi
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Building versionCode $CODE, versionName ${{ inputs.versionName }}"
+
+      # The AdMob ids and server address are the same public values build.yml uses. The
+      # signing details come in as environment variables so they never appear in a command
+      # line, which Actions logs in full.
+      - name: Build the bundle
+        env:
+          RELEASE_STORE_FILE: ${{ runner.temp }}/signing/upload.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew bundleRelease assembleRelease \
+            -PversionCode=${{ steps.version.outputs.code }} \
+            -PversionName='${{ inputs.versionName }}' \
+            -PbuildId=${{ github.sha }} \
+            -PmatchServerUrl=wss://mrpool-server.onrender.com/ws \
+            -PadmobAppId=ca-app-pub-5938763112022930~7070476193 \
+            -PadmobBannerUnit=ca-app-pub-5938763112022930/1196167131 \
+            -PadmobInterstitialUnit=ca-app-pub-5938763112022930/5559841563 \
+            -PadmobRewardedUnit=ca-app-pub-5938763112022930/5727362529 \
+            --stacktrace
+
+      # An unsigned bundle builds perfectly happily and is only rejected once it has been
+      # uploaded. Catch it here instead: a signed bundle carries a META-INF signature block.
+      - name: Check it really is signed
+        run: |
+          set -euo pipefail
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          if ! unzip -l "$AAB" | grep -qE 'META-INF/.*\.(RSA|DSA|EC)$'; then
+            echo "::error::$AAB has no signature block -- Play would reject it."
+            unzip -l "$AAB" | head -30
+            exit 1
+          fi
+          echo "Signed. $(unzip -l "$AAB" | tail -1)"
+
+      - name: Remove the key from the runner
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/signing"
+
+      # Not a public release asset: this bundle is signed with the real upload key and is
+      # only ever meant to go to Play. The artifact needs a GitHub login to fetch.
+      - name: Attach the bundle and the release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-release-${{ steps.version.outputs.code }}
+          path: |
+            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Attach the test report when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-test-report
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
