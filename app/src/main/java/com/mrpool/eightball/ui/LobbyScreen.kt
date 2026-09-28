@@ -39,7 +39,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mrpool.eightball.BuildConfig
 import com.mrpool.eightball.data.PlayerProfile
 
 /** The lobby: every mode and every shop hangs off this screen. */
@@ -212,24 +211,6 @@ fun LobbyScreen(
                 accent = Color(0xFF9C8CFF),
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onHowToPlay
-            )
-
-            // Which build this is. Small, but it turns "the fix did not work" into a
-            // question that answers itself from a screenshot.
-            //
-            // The ad ids ride along for the same reason: a build quietly shipped with
-            // Google's test units earns nothing, and a build quietly tested with the real
-            // ones gets the AdMob account closed. Neither should be a guess.
-            Text(
-                buildString {
-                    append("v${BuildConfig.VERSION_NAME} · build ${BuildConfig.BUILD_ID}")
-                    if (BuildConfig.ADMOB_TEST_IDS) append(" · TEST ADS")
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = Chalk.copy(alpha = 0.3f),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = 14.dp, bottom = 6.dp)
             )
         }
     }
