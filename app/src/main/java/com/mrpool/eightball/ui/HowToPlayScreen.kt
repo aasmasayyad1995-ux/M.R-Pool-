@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.mrpool.eightball.BuildConfig
 
 private data class Lesson(val title: String, val body: String, val bullets: List<String> = emptyList())
 
@@ -147,6 +148,29 @@ fun HowToPlayScreen(coins: Int, onBack: () -> Unit) {
             ) {
                 items(LESSONS) { lesson ->
                     LessonCard(lesson)
+                }
+
+                // Which build this is. It used to sit under the lobby buttons, which is
+                // the one screen that ends up in a store listing, so it moved here: still
+                // two taps away when somebody asks "did the fix reach your phone?", and no
+                // longer in the shot.
+                //
+                // The ad ids ride along for the same reason they always did. A build
+                // quietly shipped with Google's test units earns nothing, and a build
+                // quietly tested with the real ones gets the AdMob account closed. Neither
+                // should ever be a guess.
+                item {
+                    Text(
+                        buildString {
+                            append("v${BuildConfig.VERSION_NAME} · build ${BuildConfig.BUILD_ID}")
+                            if (BuildConfig.ADMOB_TEST_IDS) append(" · TEST ADS")
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Chalk.copy(alpha = 0.35f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp)
+                    )
                 }
             }
         }
