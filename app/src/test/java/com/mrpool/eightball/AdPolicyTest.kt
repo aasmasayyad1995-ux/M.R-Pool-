@@ -4,6 +4,7 @@ import com.mrpool.eightball.ads.AdPolicy
 import com.mrpool.eightball.ads.AdScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -59,23 +60,35 @@ class AdPolicyTest {
     }
 
     @Test
-    fun `rewarded ads are capped so the matches still mean something`() {
+    fun `a player may watch as many rewarded ads as they like`() {
+        assertNull("the cap is off", AdPolicy.DAILY_REWARD_CAP)
         assertTrue(AdPolicy.canWatchReward(watchedToday = 0))
-        assertTrue(AdPolicy.canWatchReward(watchedToday = AdPolicy.REWARDS_PER_DAY - 1))
-        assertFalse(AdPolicy.canWatchReward(watchedToday = AdPolicy.REWARDS_PER_DAY))
-        assertFalse("and never comes back by going over", AdPolicy.canWatchReward(99))
+        assertTrue(AdPolicy.canWatchReward(watchedToday = 50))
+        assertTrue("and does not quietly stop at some round number", AdPolicy.canWatchReward(10_000))
     }
 
     @Test
-    fun `what a day of watching ads pays stays under what playing pays`() {
-        // The whole economy is coins won at the table. If a player can tap through ads for
-        // more than they earn by winning, the matches stop mattering — which costs more
-        // than the ads bring in.
-        val fromAds = AdPolicy.REWARD_COINS * AdPolicy.REWARDS_PER_DAY
-        val twoHardWins = 100 * 2
+    fun `putting the cap back is one line and still works`() {
+        // The cap is nullable rather than deleted, so a day of watching can be limited
+        // again by changing DAILY_REWARD_CAP. This checks the arithmetic that would run
+        // if it were, because a limit that has never been exercised is a limit that has
+        // never been tested.
+        fun canWatch(watched: Int, cap: Int?) = cap == null || watched < cap
+        assertTrue(canWatch(3, cap = 4))
+        assertFalse(canWatch(4, cap = 4))
+        assertTrue(canWatch(10_000, cap = null))
+    }
+
+    @Test
+    fun `one ad pays well under one win, which is what holds the economy up`() {
+        // With no daily cap, the count is no longer what stops ads replacing the game —
+        // the size of a single reward is. It must stay small enough that the table is
+        // plainly the better place to earn: the beginner robot, the weakest thing in the
+        // game, pays more than twice an ad.
+        val beginnerWin = 25
         assertTrue(
-            "a day of ads ($fromAds) must not beat a couple of hard wins ($twoHardWins)",
-            fromAds <= twoHardWins
+            "an ad (${AdPolicy.REWARD_COINS}) must pay well under a beginner win ($beginnerWin)",
+            AdPolicy.REWARD_COINS * 2 <= beginnerWin
         )
     }
 
@@ -108,9 +121,10 @@ class AdPolicyTest {
     }
 
     @Test
-    fun `the count left never goes negative`() {
-        assertEquals(AdPolicy.REWARDS_PER_DAY, AdPolicy.rewardsLeft(0))
-        assertEquals(0, AdPolicy.rewardsLeft(AdPolicy.REWARDS_PER_DAY))
-        assertEquals(0, AdPolicy.rewardsLeft(AdPolicy.REWARDS_PER_DAY + 7))
+    fun `with no cap there is no count to show`() {
+        // Null rather than a big number: the wallet button has to say "Watch an ad" and
+        // not "Watch an ad · 2147483647 left today".
+        assertNull(AdPolicy.rewardsLeft(0))
+        assertNull(AdPolicy.rewardsLeft(999))
     }
 }

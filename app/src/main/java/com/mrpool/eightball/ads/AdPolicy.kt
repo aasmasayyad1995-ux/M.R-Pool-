@@ -49,25 +49,43 @@ object AdPolicy {
     /**
      * Coins for watching one rewarded ad.
      *
-     * Small on purpose: well under a beginner win, so the table is by a long way the
-     * better place to earn and nothing about the economy leans on advertising.
+     * Small on purpose: well under a beginner win (25), so the table is by a long way the
+     * better place to earn and nothing about the economy leans on advertising. This is the
+     * number that holds the economy together now that [DAILY_REWARD_CAP] is off, so it is
+     * the one to think hard about before raising.
      */
     const val REWARD_COINS = 10
 
     /**
-     * How many rewarded ads a player may take in a day.
+     * The most rewarded ads a player may take in a day, or null for no cap at all.
      *
-     * Coins are the whole of this game's economy and they are meant to be won at the
-     * table. An unlimited tap-for-coins button would make the matches pointless, which
-     * costs more than the ads bring in.
+     * There is no cap. What keeps the matches worth playing is [REWARD_COINS] being small,
+     * not a count: at ten coins an ad, the dearest table in the shop is five hundred ads,
+     * which is more hours of watching than it is of playing. A player who would rather
+     * spend those hours watching adverts than playing pool has earned the table.
+     *
+     * Google sets no per-day limit of its own -- what it asks is that a rewarded ad is
+     * only ever shown to somebody who asked for one, which is what the button on the
+     * wallet screen is. The real ceiling is fill: after a few in a row there is usually
+     * nothing left to serve, and the app has to say so rather than go quiet, which is
+     * what MainActivity does with the `shown` flag.
+     *
+     * Left as a nullable cap rather than deleted, so a day of watching can be limited
+     * again by changing this one line.
      */
-    const val REWARDS_PER_DAY = 4
+    val DAILY_REWARD_CAP: Int? = null
 
     /** True when the player may watch another rewarded ad today. */
-    fun canWatchReward(watchedToday: Int): Boolean = watchedToday < REWARDS_PER_DAY
+    fun canWatchReward(watchedToday: Int): Boolean {
+        val cap = DAILY_REWARD_CAP ?: return true
+        return watchedToday < cap
+    }
 
-    /** How many are left today, never below zero. */
-    fun rewardsLeft(watchedToday: Int): Int = (REWARDS_PER_DAY - watchedToday).coerceAtLeast(0)
+    /** How many are left today, never below zero -- or null when there is no cap. */
+    fun rewardsLeft(watchedToday: Int): Int? {
+        val cap = DAILY_REWARD_CAP ?: return null
+        return (cap - watchedToday).coerceAtLeast(0)
+    }
 
     // -------------------------------------------------------------------- daily bonus
 
