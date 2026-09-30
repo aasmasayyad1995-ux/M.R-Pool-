@@ -39,8 +39,8 @@ fun WalletScreen(
     profile: PlayerProfile,
     bonusAvailable: Boolean,
     onClaimBonus: () -> Unit,
-    /** How many rewarded ads the player may still watch today. */
-    adRewardsLeft: Int,
+    /** How many rewarded ads the player may still watch today; null when there is no cap. */
+    adRewardsLeft: Int?,
     /** False while no rewarded ad has finished loading, or while one is on screen. */
     adRewardReady: Boolean,
     onWatchAd: () -> Unit,
@@ -110,26 +110,27 @@ fun WalletScreen(
                 }
 
                 // Opt in, never in the way: a button the player presses, not an advert
-                // that arrives on its own. The cap is shown on it rather than discovered
+                // that arrives on its own. Any cap is shown on it rather than discovered
                 // by pressing it and being told no.
+                val capReached = adRewardsLeft != null && adRewardsLeft <= 0
+                val canWatch = !capReached && adRewardReady
                 Button(
                     onClick = onWatchAd,
-                    enabled = adRewardsLeft > 0 && adRewardReady,
+                    enabled = canWatch,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor =
-                            if (adRewardsLeft > 0 && adRewardReady) Cyan else Color(0xFF32383B)
+                        containerColor = if (canWatch) Cyan else Color(0xFF32383B)
                     )
                 ) {
                     Text(
                         when {
-                            adRewardsLeft <= 0 -> "No more ad rewards today"
+                            capReached -> "No more ad rewards today"
                             !adRewardReady -> "Loading an ad…"
+                            adRewardsLeft == null -> "Watch an ad +${AdPolicy.REWARD_COINS}"
                             else -> "Watch an ad +${AdPolicy.REWARD_COINS} · $adRewardsLeft left today"
                         },
-                        color = if (adRewardsLeft > 0 && adRewardReady) Ink
-                        else Chalk.copy(alpha = 0.6f),
+                        color = if (canWatch) Ink else Chalk.copy(alpha = 0.6f),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(vertical = 6.dp)
                     )
@@ -142,7 +143,9 @@ fun WalletScreen(
                 InfoRow("Daily bonus", "+${PlayerProfile.DAILY_BONUS} once a day")
                 InfoRow(
                     "Watching an ad",
-                    "+${AdPolicy.REWARD_COINS}, up to ${AdPolicy.REWARDS_PER_DAY} a day"
+                    AdPolicy.DAILY_REWARD_CAP
+                        ?.let { "+${AdPolicy.REWARD_COINS}, up to $it a day" }
+                        ?: "+${AdPolicy.REWARD_COINS}, as often as you like"
                 )
 
                 SectionTitle("How you spend")

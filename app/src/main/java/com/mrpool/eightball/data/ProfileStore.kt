@@ -134,8 +134,8 @@ class ProfileStore(context: Context) {
         return AdPolicy.REWARD_COINS
     }
 
-    /** How many rewarded ads the player may still watch today. */
-    fun adRewardsLeft(nowMillis: Long = System.currentTimeMillis()): Int =
+    /** How many rewarded ads the player may still watch today, or null when uncapped. */
+    fun adRewardsLeft(nowMillis: Long = System.currentTimeMillis()): Int? =
         AdPolicy.rewardsLeft(current.rewardsWatchedOn(BonusDay.local(nowMillis)))
 
     /** The name the opponent sees online. */

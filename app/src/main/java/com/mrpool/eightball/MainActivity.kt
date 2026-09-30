@@ -428,19 +428,30 @@ private fun MrPoolApp() {
                         if (host == null) {
                             toast("Ads are not available right now")
                         } else {
+                            var earned = false
                             ads.showRewarded(
                                 activity = host,
                                 // Paid only when the player watched enough of it to earn the
-                                // reward, and paid through the store so the daily cap is applied
-                                // in the one place that knows the count.
+                                // reward, and paid through the store so any cap is applied in
+                                // the one place that knows the count.
                                 onEarned = {
+                                    earned = true
                                     val paid = store.claimAdReward()
                                     if (paid != null) {
                                         audio.play(Sound.COINS)
                                         toast("+$paid coins")
                                     }
                                 },
-                                onFinished = { }
+                                // Silence used to be the answer when nothing could be shown.
+                                // With no daily cap that is the common case, not the rare one:
+                                // ad fill runs out long before a determined player does, and a
+                                // button that does nothing at all reads as a broken game.
+                                onFinished = { shown ->
+                                    when {
+                                        !shown -> toast("No ad available right now — try again in a moment")
+                                        !earned -> toast("Watch the whole ad to earn coins")
+                                    }
+                                }
                             )
                         }
                     },
