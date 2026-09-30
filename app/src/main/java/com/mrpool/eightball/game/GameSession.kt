@@ -171,7 +171,10 @@ class GameSession(
         if (phase != GamePhase.SHOOTING) return
         physics.advance(dt, events)
         if (!physics.anyBallMoving()) {
-            physics.balls.forEach { if (!it.isMoving) it.stop() }
+            // Settles before the rules look, so a ball that stopped in a pocket mouth is
+            // counted as potted on the shot that put it there rather than parked off the
+            // table for the rest of the game.
+            physics.settle(events)
             resolveShot()
         }
     }
