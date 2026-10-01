@@ -65,7 +65,7 @@ data class PlayerProfile(
      * [MAX_NAME] characters, and a blank one falls back rather than leaving an empty plate.
      */
     fun withName(raw: String): PlayerProfile =
-        copy(playerName = raw.trim().take(MAX_NAME).ifBlank { DEFAULT_NAME })
+        copy(playerName = raw.trim().capAt(MAX_NAME).trim().ifBlank { DEFAULT_NAME })
 
     val matchesPlayed: Int get() = wins + losses
 
@@ -84,6 +84,22 @@ data class PlayerProfile(
     fun withRewardWatched(today: Long): PlayerProfile =
         if (rewardDay == today) copy(rewardsToday = rewardsToday + 1)
         else copy(rewardDay = today, rewardsToday = 1)
+
+    /**
+     * The first [max] characters of this string, counting a character the way a person
+     * would rather than the way the runtime stores one.
+     *
+     * take() counts UTF-16 units, and everything outside the basic plane -- every emoji
+     * among them -- is two of those. Cutting at sixteen units could land between the two
+     * halves of one and leave the first half behind on its own. That half is not a
+     * character: it draws as an empty box on the scoreboard, and it cannot be encoded as
+     * UTF-8 at all, so the opponent receives a question mark where the name should be.
+     */
+    private fun String.capAt(max: Int): String {
+        if (length <= max) return this
+        val end = if (this[max - 1].isHighSurrogate()) max - 1 else max
+        return substring(0, end)
+    }
 
     companion object {
         const val STARTING_COINS = 1500
