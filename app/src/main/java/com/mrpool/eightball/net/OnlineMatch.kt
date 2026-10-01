@@ -67,6 +67,9 @@ class OnlineMatch(
     /** Index of the shot currently rolling, or null when the table is at rest. */
     private var shotInFlight: Int? = null
 
+    /** Frames the move at the head of the buffer has been turned away for. */
+    private var refusals = 0
+
     init {
         transport.onRemoteMove = { index, move -> receiveMove(index, move) }
         transport.onRemoteChecksum = { index, checksum ->
@@ -79,6 +82,8 @@ class OnlineMatch(
                 session.restore(snapshot)
                 appliedMoves = index + 1
                 shotInFlight = null
+                refusals = 0
+                buffered.keys.retainAll { it >= appliedMoves }
                 localChecksums.clear()
                 remoteChecksums.clear()
                 repairs++
@@ -127,23 +132,61 @@ class OnlineMatch(
     // ------------------------------------------------------------------ remote moves
 
     private fun receiveMove(index: Int, move: MatchMove) {
-        if (index < appliedMoves) return          // already applied, or a duplicate delivery
+        // Before the index test, not after it. A forfeit is not a move in the game, it is
+        // the end of one, and the leaver stamps it with their own move count -- which is
+        // behind ours whenever something of ours is still in flight the other way. Treated
+        // as a stale duplicate it was dropped, and the player left behind sat at a still
+        // table waiting for a game nobody was playing.
         if (move is MatchMove.Forfeit) {
             status = OnlineStatus.OPPONENT_GONE
             return
         }
+        if (index < appliedMoves) return          // already applied, or a duplicate delivery
         // Our own moves come back to us from the database; we already applied them.
         if (move.seat == localSeat) return
         buffered[index] = move
         drainBuffer()
     }
 
-    /** Applies whatever buffered moves are now due, in order. */
+    /**
+     * Applies whatever buffered moves are now due, in order.
+     *
+     * A move is only taken out of the buffer once it has actually been applied. It used to
+     * be removed first: a move this table could not take yet -- or could not take at all --
+     * was gone, nothing retried it, `appliedMoves` never advanced past it, and the match
+     * stopped dead with both players looking at a still table and no error anywhere.
+     */
     private fun drainBuffer() {
         while (shotInFlight == null) {
-            val next = buffered.remove(appliedMoves) ?: return
-            if (!apply(appliedMoves, next)) return
+            val index = appliedMoves
+            val next = buffered[index] ?: return
+            if (!apply(index, next)) {
+                refused(index)
+                return
+            }
+            buffered.remove(index)
+            refusals = 0
         }
+    }
+
+    /**
+     * Called each time the move at the head of the buffer is turned away.
+     *
+     * Retrying covers the case where this table simply has not caught up yet, which clears
+     * in a frame or two. A move that is still being refused after that means the two tables
+     * disagree about the state of the game -- the sender could make this move and we cannot
+     * -- and retrying forever would hang the match.
+     *
+     * So say so, with a fingerprint for that move: ours comes from a table that has not
+     * applied it and theirs from one that has, so the two are certain to differ and the
+     * host sends the repair that unsticks us. Only the guest does this. The host's table is
+     * the authority by definition and has nothing to be repaired from.
+     */
+    private fun refused(index: Int) {
+        refusals++
+        if (isHost || refusals != REFUSALS_BEFORE_REPAIR) return
+        status = OnlineStatus.REPAIRING
+        publishChecksum(index)
     }
 
     // ----------------------------------------------------------------------- applying
@@ -161,7 +204,18 @@ class OnlineMatch(
             }
 
             is MatchMove.PlaceCueBall -> {
-                if (!session.placeCueBall(Vec2(move.x, move.y))) return false
+                val asked = Vec2(move.x, move.y)
+                // The sender's table said this spot was clear. Ours can disagree by a hair:
+                // the test is a threshold against every other ball's position, and two
+                // devices are not promised the same last bit of a float -- which is the
+                // whole reason the fingerprints exist. Refusing would stop the match over a
+                // fraction of a millimetre, so the ball goes to the nearest spot this table
+                // does allow, and the fingerprint that follows catches whatever is left.
+                if (!session.placeCueBall(asked) &&
+                    !session.placeCueBall(session.nearestValidCueBallPosition(asked))
+                ) {
+                    return false
+                }
                 appliedMoves = index + 1
                 publishChecksum(index)
             }
@@ -214,6 +268,15 @@ class OnlineMatch(
         } else {
             status = OnlineStatus.REPAIRING
         }
+    }
+
+    private companion object {
+        /**
+         * Frames of being turned away before a move is treated as a disagreement rather
+         * than as this table running a step behind. Half a second at sixty frames: long
+         * enough that catching up is never mistaken for drifting apart.
+         */
+        const val REFUSALS_BEFORE_REPAIR = 30
     }
 
     fun close() {
