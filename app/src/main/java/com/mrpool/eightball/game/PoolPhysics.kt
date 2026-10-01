@@ -88,7 +88,7 @@ class PoolPhysics(
             step(dt, events)
             elapsed += dt
         }
-        balls.forEach { if (!it.isMoving) it.stop() }
+        settle(events)
         return events
     }
 
@@ -275,18 +275,26 @@ class PoolPhysics(
         val limY = TableGeometry.HALF_WIDTH - radius
         var hit = false
 
-        if (b.position.x < -limX && !inShortRailMouth(b.position)) {
+        if (b.position.x < -limX && railReaches(-limX - b.position.x) &&
+            !inShortRailMouth(b.position)
+        ) {
             bounce(b, Vec2(1f, 0f), Vec2(-limX, b.position.y))
             hit = true
-        } else if (b.position.x > limX && !inShortRailMouth(b.position)) {
+        } else if (b.position.x > limX && railReaches(b.position.x - limX) &&
+            !inShortRailMouth(b.position)
+        ) {
             bounce(b, Vec2(-1f, 0f), Vec2(limX, b.position.y))
             hit = true
         }
 
-        if (b.position.y < -limY && !inLongRailMouth(b.position)) {
+        if (b.position.y < -limY && railReaches(-limY - b.position.y) &&
+            !inLongRailMouth(b.position)
+        ) {
             bounce(b, Vec2(0f, 1f), Vec2(b.position.x, -limY))
             hit = true
-        } else if (b.position.y > limY && !inLongRailMouth(b.position)) {
+        } else if (b.position.y > limY && railReaches(b.position.y - limY) &&
+            !inLongRailMouth(b.position)
+        ) {
             bounce(b, Vec2(0f, -1f), Vec2(b.position.x, limY))
             hit = true
         }
@@ -298,6 +306,26 @@ class PoolPhysics(
 
         rattleInJaws(b)
     }
+
+    /**
+     * Whether a cushion can still act on a ball already [depth] metres past its line.
+     *
+     * [bounce] puts the ball back on the line, which is right for a ball arriving at the
+     * rail: the step size holds a substep's travel under half a radius, so it can only
+     * ever have crossed by a sliver. It is badly wrong for a ball that is deep past the
+     * line, because such a ball got there through a pocket mouth and the rail is behind
+     * it now.
+     *
+     * That happened. A ball resting eight centimetres into the jaws sat a hair outside
+     * [inLongRailMouth]'s boundary; the moment it drifted across, the rail woke up and
+     * flung it back to the cushion line -- through the rail it had already gone past, in
+     * a single step, at a tenth of a metre per second. On screen the ball teleports out
+     * of the pocket and back onto the table, and the shot ends differently than it should.
+     *
+     * A whole radius is twice what an arriving ball can need, and a fifth of the depth
+     * that caused the trouble. Anything deeper belongs to [rattleInJaws] and [settle].
+     */
+    private fun railReaches(depth: Float): Boolean = depth <= radius
 
     /** The short rails are cut away where the corner pockets are. */
     private fun inShortRailMouth(p: Vec2): Boolean =
@@ -350,6 +378,50 @@ class PoolPhysics(
             b.velocity = Vec2(vx, vy)
         }
     }
+
+    /**
+     * Stops everything that has come to rest, and drops anything that stopped off the table.
+     *
+     * [rattleInJaws] keeps a ball that enters a pocket mouth from flying off, which is
+     * right. What nothing handled is a ball that *stops* in there: outside the cushions,
+     * but further from the pocket centre than [Pocket.radius], so [checkPockets] never
+     * swallowed it. It was then neither on the table nor in the pocket. It sat in the jaws
+     * for the rest of the game -- impossible to hit, impossible to pot, and in one run of
+     * 360 games it was the cue ball.
+     *
+     * On a real table more than half the ball is over the opening at that point, and
+     * gravity settles the argument. So does this: it drops into the pocket it is sitting
+     * in, on the shot that put it there.
+     *
+     * Both the table the player watches and the head-less rehearsal the robot plans with
+     * end their shots here, because a rule that applied to only one of them would make the
+     * robot plan for a table that does not exist -- and would desync an online match,
+     * where both phones replay the same shots and must agree to a tenth of a millimetre.
+     */
+    fun settle(events: ShotEvents? = null) {
+        for (b in balls) if (!b.isMoving) b.stop()
+
+        for (b in balls) {
+            if (b.pocketed) continue
+            // A ball frozen against a cushion sits exactly on this line, so only a ball
+            // clearly past it has gone into a mouth. The strandings seen in testing were
+            // 60 to 80 millimetres out; the margin only has to beat arithmetic.
+            if (pastCushions(b.position) <= JAW_DROP_MARGIN) continue
+            val pocket = TableGeometry.pockets.minByOrNull { it.center.distanceTo(b.position) }
+                ?: continue
+            collisionListener?.onPocketed(b.number, 0f)
+            b.pocketed = true
+            b.stop()
+            b.position = pocket.center
+            events?.pocketed?.add(b.number)
+        }
+    }
+
+    /** How far a ball centre is past the cushion line; negative while it is safely inside. */
+    private fun pastCushions(p: Vec2): Float = max(
+        abs(p.x) - (TableGeometry.HALF_LENGTH - radius),
+        abs(p.y) - (TableGeometry.HALF_WIDTH - radius)
+    )
 
     private fun checkPockets(events: ShotEvents?) {
         for (b in balls) {
@@ -408,6 +480,13 @@ class PoolPhysics(
         private const val MIN_STEP = 1f / 2000f
         private const val MAX_SUBSTEPS = 64
         private const val SLIP_EPSILON = 0.012f
+        /**
+         * How far past the cushion line a resting ball has to be before [settle] drops it.
+         * Small: it exists only so a ball frozen against a cushion, which sits exactly on
+         * the line, is never mistaken for one sitting in a pocket mouth.
+         */
+        private const val JAW_DROP_MARGIN = 0.003f
+
         private const val JAW_DEPTH = 0.055f
         private const val JAW_RESTITUTION = 0.35f
     }
