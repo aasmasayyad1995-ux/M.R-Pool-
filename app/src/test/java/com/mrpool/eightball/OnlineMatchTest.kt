@@ -352,4 +352,114 @@ class OnlineMatchTest {
         assertTrue("the pocketed ball was lost in transit",
             decoded.balls.first { it.number == 3 }.pocketed)
     }
+
+    // ------------------------------------------------- moves the other table refuses
+
+    /** Puts both tables into a chosen state the way the repair path does. */
+    private fun FakeNetwork.setBoth(phase: GamePhase, seat: Seat) {
+        val state = host.session.snapshot().copy(currentSeat = seat, phase = phase)
+        host.session.restore(state)
+        guest.session.restore(state)
+    }
+
+    @Test
+    fun `a placement the other table thinks is illegal does not strand the match`() {
+        // Why this happens: placeCueBall asks whether the spot is clear of every other
+        // ball, by a threshold. Two devices that differ in the last bit of a float can
+        // answer that differently -- which is the whole reason the checksum exists. The
+        // sender places and moves on; the receiver refuses, and the move was already gone
+        // from the buffer, so nothing ever applied it and nothing ever retried it.
+        val net = FakeNetwork(seed = 11)
+        net.setBoth(GamePhase.BALL_IN_HAND, Seat.ONE)
+
+        // Free on the host's table, occupied on the guest's.
+        val spot = Vec2(-0.7f, 0.2f)
+        net.guest.session.physics.balls.first { !it.isCue }.position = spot
+
+        assertTrue("the host sees a legal spot", net.host.submitPlacement(spot))
+        net.settle()
+
+        assertEquals(
+            "the guest is still waiting for a move that was thrown away: ${net.describe()}",
+            net.host.appliedMoves,
+            net.guest.appliedMoves
+        )
+    }
+
+    @Test
+    fun `a move that cannot land yet is retried rather than lost`() {
+        val net = FakeNetwork(seed = 12)
+        net.setBoth(GamePhase.BALL_IN_HAND, Seat.ONE)
+        // The guest has not reached ball in hand yet, so the placement cannot land when it
+        // arrives. A moment later it catches up, and the move must still be there.
+        val behind = net.guest.session.snapshot().copy(phase = GamePhase.AIMING)
+        net.guest.session.restore(behind)
+
+        val spot = Vec2(-0.6f, -0.15f)
+        assertTrue(net.host.submitPlacement(spot))
+        assertEquals("the guest could not take it yet", 0, net.guest.appliedMoves)
+
+        net.guest.session.restore(net.guest.session.snapshot().copy(phase = GamePhase.BALL_IN_HAND))
+        net.settle()
+
+        assertEquals(
+            "the move should have been retried once the guest could take it: ${net.describe()}",
+            1,
+            net.guest.appliedMoves
+        )
+    }
+
+    @Test
+    fun `a forfeit is honoured even when it arrives with an old index`() {
+        // forfeit() stamps the move with the leaver's own move count. If the other side is
+        // already further on -- easy enough when a move is still in flight the other way --
+        // the index is behind, receiveMove drops it as a duplicate, and the player left
+        // behind waits at a still table for a game nobody is playing.
+        val net = FakeNetwork(seed = 13)
+        net.setBoth(GamePhase.AIMING, Seat.TWO)
+
+        // The guest moves, and the news does not reach the host.
+        net.guestTransport.paused = true
+        assertTrue(net.guest.submitShot(0.5f, 0.6f, 0f, 0f))
+        net.settle()
+        assertTrue("the guest is ahead of the host", net.guest.appliedMoves > net.host.appliedMoves)
+
+        net.host.forfeit()
+        net.settle()
+
+        assertEquals(
+            "the guest was never told: ${net.describe()}",
+            OnlineStatus.OPPONENT_GONE,
+            net.guest.status
+        )
+    }
+
+    @Test
+    fun `a move that can never land gets the guest repaired instead of hanging it`() {
+        // Retrying is right for a table that is a step behind. It is not enough on its own:
+        // a table that genuinely disagrees would refuse the same move forever and the match
+        // would stop with no error anywhere. After a while the guest says so with a
+        // fingerprint it knows will differ, and the host's repair puts it back in the game.
+        val net = FakeNetwork(seed = 14)
+        net.setBoth(GamePhase.AIMING, Seat.ONE)
+        // A guest that thinks the game is over will never accept a shot.
+        net.guest.session.restore(net.guest.session.snapshot().copy(phase = GamePhase.GAME_OVER))
+
+        assertTrue(net.host.submitShot(0.3f, 0.8f, 0f, 0f))
+        // Driven like the real game loop, which keeps running whether or not a ball is
+        // rolling. settle() stops as soon as both tables are still, and a short shot can
+        // be over before a stuck table has been refused long enough to say anything.
+        repeat(200) {
+            net.host.update(1f / 60f)
+            net.guest.update(1f / 60f)
+        }
+
+        assertEquals(
+            "the guest should have been repaired back into the game: ${net.describe()}",
+            net.host.appliedMoves,
+            net.guest.appliedMoves
+        )
+        assertTrue("and the repair should be counted, not hidden", net.guest.repairs > 0)
+        assertEquals(OnlineStatus.PLAYING, net.guest.status)
+    }
 }
