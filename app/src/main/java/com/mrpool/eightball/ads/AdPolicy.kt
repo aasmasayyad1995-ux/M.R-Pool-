@@ -60,9 +60,10 @@ object AdPolicy {
      * The most rewarded ads a player may take in a day, or null for no cap at all.
      *
      * There is no cap. What keeps the matches worth playing is [REWARD_COINS] being small,
-     * not a count: at ten coins an ad, the dearest table in the shop is five hundred ads,
-     * which is more hours of watching than it is of playing. A player who would rather
-     * spend those hours watching adverts than playing pool has earned the table.
+     * not a count: at ten coins an ad, the dearest table in the shop is five *thousand*
+     * ads -- some forty hours of watching, against five hundred wins off the hard robot.
+     * A player who would rather spend those hours watching adverts than playing pool has
+     * earned the table.
      *
      * Google sets no per-day limit of its own -- what it asks is that a rewarded ad is
      * only ever shown to somebody who asked for one, which is what the button on the
