@@ -15,3 +15,7 @@ server/.gradle/
 *.jks
 *.keystore
 !keystore/debug.keystore
+
+# Python leaves these next to tools/
+__pycache__/
+*.pyc

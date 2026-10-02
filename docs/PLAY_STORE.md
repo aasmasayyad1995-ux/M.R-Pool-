@@ -17,7 +17,7 @@ every release.
 | Target API 36 | Required of new apps since 31 Aug 2026 |
 | Edge to edge | Handled in `MainActivity`, so API 35+ does not put buttons under the navigation bar |
 | Launcher icon | PNGs for Android 7, adaptive icon for Android 8+ |
-| Store graphics | `docs/store/icon-512.png`, `docs/store/feature-graphic-1024x500.png` |
+| Store graphics | `docs/store/` — icon, feature graphic and seven screenshots; see its README |
 | Privacy policy | `docs/privacy-policy.html` — written and filled in; needs GitHub Pages turning on |
 
 ---
@@ -131,7 +131,7 @@ find out after a rejected upload.
 |---|---|
 | App icon | `docs/store/icon-512.png` |
 | Feature graphic | `docs/store/feature-graphic-1024x500.png` |
-| Phone screenshots | **At least 2.** Take them on a phone: the lobby and a match in progress. Landscape, since the game is landscape. |
+| Phone screenshots | ✅ **ready** — the seven in `docs/store/screenshots/`, uploaded in their numbered order |
 | Short description | max 80 characters, e.g. *Play 8 ball pool in 3D against friends online or against the bots.* |
 | Full description | up to 4000 characters |
 | Contact email | the same one as in the privacy policy |
