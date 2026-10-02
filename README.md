@@ -309,7 +309,8 @@ requires, and carries the icon and store graphics. What it cannot carry is a Pla
 a signing key or a card.
 
 [**docs/PLAY_STORE.md**](docs/PLAY_STORE.md) is the whole path from here to a listing, in
-order. The short version:
+order, and [**docs/HINDI-GUIDE.md**](docs/HINDI-GUIDE.md) is the same thing in Hindi for
+the person who owns the account. The short version:
 
 ```bash
 # once: make an upload key and put it in four GitHub secrets
