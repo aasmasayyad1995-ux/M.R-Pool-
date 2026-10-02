@@ -132,9 +132,9 @@ find out after a rejected upload.
 | App icon | `docs/store/icon-512.png` |
 | Feature graphic | `docs/store/feature-graphic-1024x500.png` |
 | Phone screenshots | ✅ **ready** — the seven in `docs/store/screenshots/`, uploaded in their numbered order |
-| Short description | max 80 characters, e.g. *Play 8 ball pool in 3D against friends online or against the bots.* |
-| Full description | up to 4000 characters |
-| Contact email | the same one as in the privacy policy |
+| Short description | ✅ **ready** — in [`docs/store/listing.md`](store/listing.md) |
+| Full description | ✅ **ready** — same file |
+| Contact email | `infinitycore.studio@gmail.com` — the same one as the privacy policy |
 | Privacy policy | the GitHub Pages URL from step 4 |
 
 ### The forms Play will not let you skip

@@ -1,6 +1,9 @@
 # Store art
 
-Everything Play asks for as a picture. Upload them in this order; the first two are
+Everything Play asks for as a picture. The words that go beside them are in
+[`listing.md`](listing.md).
+
+Everything below is a picture. Upload them in this order; the first two are
 what shows in search results, so they are the table rather than a menu.
 
 | File | What it is |
