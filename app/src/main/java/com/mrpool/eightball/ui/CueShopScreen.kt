@@ -2,6 +2,8 @@ package com.mrpool.eightball.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Path
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -149,46 +151,103 @@ private fun CueCard(
 /** A flat side-on drawing of the cue, coloured exactly like the 3D model in the game. */
 @Composable
 private fun CuePreview(cue: CueStick) {
-    Row(
+    val shaft = Color(cue.shaftColor.toInt())
+    val butt = Color(cue.buttColor.toInt())
+    val accent = Color(cue.accentColor.toInt())
+
+    Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(18.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(38.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .width(10.dp)
-                .height(5.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Color(0xFF6FA8DC))
-        )
-        Box(
-            modifier = Modifier
-                .weight(1.4f)
-                .height(7.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color(cue.shaftColor.toInt()), Color(cue.shaftColor.toInt()))
-                    )
+        val w = size.width
+        val h = size.height
+
+        // Laid on a slight diagonal and tapered, because a cue drawn as a flat bar of one
+        // thickness is a stick drawn by somebody who has not held one.
+        val tipX = w * 0.015f
+        val buttX = w * 0.985f
+        val tipY = h * 0.62f
+        val buttY = h * 0.40f
+        val tipR = h * 0.075f        // a cue tip is about 13mm
+        val buttR = h * 0.165f       // the butt is roughly twice that
+
+        fun yAt(t: Float) = tipY + (buttY - tipY) * t
+        fun rAt(t: Float) = tipR + (buttR - tipR) * t
+        fun xAt(t: Float) = tipX + (buttX - tipX) * t
+
+        /** One tapered length of the cue, as a four cornered sliver. */
+        fun segment(t0: Float, t1: Float): Path = Path().apply {
+            moveTo(xAt(t0), yAt(t0) - rAt(t0))
+            lineTo(xAt(t1), yAt(t1) - rAt(t1))
+            lineTo(xAt(t1), yAt(t1) + rAt(t1))
+            lineTo(xAt(t0), yAt(t0) + rAt(t0))
+            close()
+        }
+
+        /** Rounded across its width, so it reads as a rod and not a plank. */
+        fun shade(t0: Float, t1: Float, c: Color) {
+            drawPath(
+                path = segment(t0, t1),
+                brush = Brush.verticalGradient(
+                    0f to c.darken(0.45f),
+                    0.30f to c.lighten(0.30f),
+                    0.55f to c,
+                    1f to c.darken(0.55f),
+                    startY = yAt(t0) - rAt(t1),
+                    endY = yAt(t0) + rAt(t1)
                 )
+            )
+        }
+
+        // The shadow it casts on the card.
+        drawPath(
+            path = Path().apply {
+                moveTo(tipX, tipY + tipR * 2.6f)
+                lineTo(buttX, buttY + buttR * 2.2f)
+                lineTo(buttX, buttY + buttR * 3.4f)
+                lineTo(tipX, tipY + tipR * 4.2f)
+                close()
+            },
+            color = Color(0x33000000)
         )
-        Box(
-            modifier = Modifier
-                .width(6.dp)
-                .height(9.dp)
-                .background(Color(cue.accentColor.toInt()))
+
+        shade(0.045f, 0.52f, shaft)                 // shaft
+        shade(0.52f, 0.60f, accent)                 // joint collar
+        shade(0.60f, 0.78f, butt.lighten(0.10f))    // forearm
+        shade(0.78f, 0.93f, butt.darken(0.18f))     // wrap, darker where it is held
+        shade(0.93f, 1f, accent.darken(0.25f))      // butt cap
+
+        // Ferrule and tip, the two small things that say "cue" at a glance.
+        shade(0.018f, 0.045f, Color(0xFFF2EDE2))
+        drawPath(segment(0f, 0.018f), color = Color(0xFF5B86C4))
+
+        // Inlay points up the forearm.
+        for (i in 0..2) {
+            val t = 0.635f + i * 0.045f
+            drawPath(
+                path = Path().apply {
+                    moveTo(xAt(t), yAt(t) - rAt(t) * 0.80f)
+                    lineTo(xAt(t + 0.030f), yAt(t) - rAt(t) * 0.05f)
+                    lineTo(xAt(t), yAt(t) + rAt(t) * 0.70f)
+                    close()
+                },
+                color = accent.lighten(0.25f)
+            )
+        }
+
+        // One long highlight along the top of the rod. This is the line that does most of
+        // the work of making it look round rather than flat.
+        drawPath(
+            path = Path().apply {
+                moveTo(xAt(0.05f), yAt(0.05f) - rAt(0.05f) * 0.52f)
+                lineTo(xAt(1f), yAt(1f) - rAt(1f) * 0.58f)
+                lineTo(xAt(1f), yAt(1f) - rAt(1f) * 0.22f)
+                lineTo(xAt(0.05f), yAt(0.05f) - rAt(0.05f) * 0.14f)
+                close()
+            },
+            color = Color(0x3AFFFFFF)
         )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(11.dp)
-                .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color(cue.buttColor.toInt()), Color(cue.accentColor.toInt()))
-                    )
-                )
-        )
-        Box(modifier = Modifier.size(4.dp))
     }
 }
+
