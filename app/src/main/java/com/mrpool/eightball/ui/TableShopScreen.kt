@@ -1,13 +1,10 @@
 package com.mrpool.eightball.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,16 +16,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.mrpool.eightball.data.PlayerProfile
@@ -42,6 +43,12 @@ fun TableShopScreen(
     onBuy: (PoolTableSkin) -> Unit,
     onEquip: (PoolTableSkin) -> Unit
 ) {
+    // Which table the panel at the top is showing. It starts on the table being played
+    // and follows whatever the player last touched, so the big picture is always of the
+    // table they are thinking about rather than the one they already own.
+    var previewId by remember { mutableStateOf(profile.equippedTable.id) }
+    val preview = PoolTableSkin.ALL.firstOrNull { it.id == previewId } ?: profile.equippedTable
+
     PoolBackground {
         Column(modifier = Modifier.fillMaxSize()) {
             ScreenHeader(
@@ -50,22 +57,92 @@ fun TableShopScreen(
                 coins = profile.coins,
                 onBack = onBack
             )
+            TablePreviewPanel(
+                table = preview,
+                owned = profile.owns(preview),
+                equipped = profile.equippedTable.id == preview.id,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(PoolTableSkin.ALL, key = { it.id }) { table ->
                     TableCard(
                         table = table,
                         owned = profile.owns(table),
                         equipped = profile.equippedTable.id == table.id,
+                        selected = table.id == preview.id,
                         affordable = profile.coins >= table.price,
-                        onBuy = { onBuy(table) },
-                        onEquip = { onEquip(table) }
+                        onSelect = { previewId = table.id },
+                        onBuy = { previewId = table.id; onBuy(table) },
+                        onEquip = { previewId = table.id; onEquip(table) }
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The showcase above the list: one table, drawn big enough to be worth wanting.
+ *
+ * The thumbnail in a row has to survive being 84dp wide, so it can only ever be a hint.
+ * This is where the table is actually sold.
+ */
+@Composable
+private fun TablePreviewPanel(
+    table: PoolTableSkin,
+    owned: Boolean,
+    equipped: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val felt = Color(table.feltColor.toInt())
+    val rail = Color(table.railColor.toInt())
+    val trim = Color(table.trimColor.toInt())
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.horizontalGradient(listOf(felt.darken(0.76f), Ink, InkSoft))
+            )
+            .border(BorderStroke(1.dp, trim.copy(alpha = 0.45f)), RoundedCornerShape(20.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Canvas(modifier = Modifier.size(width = 240.dp, height = 104.dp)) {
+            drawPoolTable(felt = felt, rail = rail, trim = trim, detailed = true)
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(table.name, style = MaterialTheme.typography.headlineMedium, color = Chalk)
+            Text(
+                "${table.venue} · ${table.clothSpeed.label}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Chalk.copy(alpha = 0.6f)
+            )
+            Text(
+                when {
+                    equipped -> "You are playing on this table"
+                    owned -> "Unlocked · tap Play to use it"
+                    table.isFree -> "Free · plays slow and forgiving"
+                    else -> "${formatCoins(table.price)} coins to unlock"
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (equipped) Gold else Chalk.copy(alpha = 0.85f)
+            )
+            Text(
+                "Tap any table below to see it here",
+                style = MaterialTheme.typography.labelSmall,
+                color = Chalk.copy(alpha = 0.35f),
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
     }
 }
@@ -75,24 +152,50 @@ private fun TableCard(
     table: PoolTableSkin,
     owned: Boolean,
     equipped: Boolean,
+    selected: Boolean,
     affordable: Boolean,
+    onSelect: () -> Unit,
     onBuy: () -> Unit,
     onEquip: () -> Unit
 ) {
+    val outline = when {
+        equipped -> Gold
+        selected -> Chalk.copy(alpha = 0.45f)
+        else -> Chalk.copy(alpha = 0.12f)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(InkSoft)
             .border(
-                BorderStroke(if (equipped) 2.dp else 1.dp, if (equipped) Gold else Chalk.copy(alpha = 0.12f)),
+                BorderStroke(if (equipped || selected) 2.dp else 1.dp, outline),
                 RoundedCornerShape(18.dp)
             )
-            .padding(14.dp),
+            .clickable { onSelect() }
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        TablePreview(table)
+        Box(
+            modifier = Modifier
+                .size(width = 104.dp, height = 52.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Ink)
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 2.dp)
+            ) {
+                drawPoolTable(
+                    felt = Color(table.feltColor.toInt()),
+                    rail = Color(table.railColor.toInt()),
+                    trim = Color(table.trimColor.toInt()),
+                    detailed = false
+                )
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(table.name, style = MaterialTheme.typography.titleMedium, color = Chalk)
             Text(
@@ -136,116 +239,3 @@ private fun TableCard(
         }
     }
 }
-
-/** A miniature of the table, drawn from the same colours the 3D renderer uses. */
-@Composable
-private fun TablePreview(table: PoolTableSkin) {
-    val felt = Color(table.feltColor.toInt())
-    val rail = Color(table.railColor.toInt())
-    val trim = Color(table.trimColor.toInt())
-
-    Canvas(modifier = Modifier.size(width = 104.dp, height = 68.dp)) {
-        val w = size.width
-        val h = size.height
-
-        // The table is drawn as if looked at from the near end and slightly above, so the
-        // far rail is narrower than the near one. That one trapezoid is what makes a flat
-        // rectangle read as a table standing in a room.
-        val farInset = w * 0.17f
-        val top = h * 0.17f
-        val bottom = h * 0.86f
-
-        fun outer(): Path = Path().apply {
-            moveTo(farInset, top)
-            lineTo(w - farInset, top)
-            lineTo(w, bottom)
-            lineTo(0f, bottom)
-            close()
-        }
-
-        // A soft shadow on the floor, so the table sits rather than floats.
-        drawOval(
-            color = Color(0x55000000),
-            topLeft = Offset(w * 0.06f, bottom - h * 0.06f),
-            size = Size(w * 0.88f, h * 0.17f)
-        )
-
-        // The rail frame: lit along the top edge, dark along the bottom, which is where
-        // the wood gets its thickness from.
-        drawPath(
-            path = outer(),
-            brush = Brush.verticalGradient(
-                0f to rail.lighten(0.35f),
-                0.45f to rail,
-                1f to rail.darken(0.45f),
-                startY = top,
-                endY = bottom
-            )
-        )
-
-        // The cloth, inset inside the rails and keeping the same perspective.
-        val clothFar = farInset + w * 0.085f
-        val clothTop = top + h * 0.13f
-        val clothBottom = bottom - h * 0.13f
-        val cloth = Path().apply {
-            moveTo(clothFar, clothTop)
-            lineTo(w - clothFar, clothTop)
-            lineTo(w - w * 0.055f, clothBottom)
-            lineTo(w * 0.055f, clothBottom)
-            close()
-        }
-        drawPath(
-            path = cloth,
-            brush = Brush.verticalGradient(
-                0f to felt.darken(0.30f),       // far end falls away from the light
-                0.42f to felt.lighten(0.12f),   // the lamp sits over the middle
-                1f to felt.darken(0.12f),
-                startY = clothTop,
-                endY = clothBottom
-            )
-        )
-
-        // Six pockets. Ellipses rather than circles: a round hole seen at an angle is one.
-        fun pocket(cx: Float, cy: Float, r: Float) {
-            drawOval(                                   // leather lip, catching the light
-                color = trim.lighten(0.25f),
-                topLeft = Offset(cx - r, cy - r * 0.62f),
-                size = Size(r * 2f, r * 1.24f)
-            )
-            drawOval(                                   // the drop itself
-                color = Color(0xFF05070A),
-                topLeft = Offset(cx - r * 0.74f, cy - r * 0.44f),
-                size = Size(r * 1.48f, r * 0.88f)
-            )
-        }
-        val rFar = w * 0.042f
-        val rNear = w * 0.055f
-        pocket(clothFar, clothTop, rFar)
-        pocket(w - clothFar, clothTop, rFar)
-        pocket(w * 0.055f, clothBottom, rNear)
-        pocket(w - w * 0.055f, clothBottom, rNear)
-        pocket(w * 0.5f, clothTop + h * 0.005f, rFar * 0.92f)
-        pocket(w * 0.5f, clothBottom, rNear * 0.92f)
-
-        // Three balls, small, just enough to say what the table is for. Each gets a
-        // highlight up and left, which is the whole trick for making a disc look round.
-        fun ball(cx: Float, cy: Float, r: Float, c: Color) {
-            drawOval(
-                color = Color(0x44000000),
-                topLeft = Offset(cx - r, cy - r * 0.2f),
-                size = Size(r * 2.1f, r * 0.8f)
-            )
-            drawCircle(c, radius = r, center = Offset(cx, cy))
-            drawCircle(
-                Color(0x66FFFFFF),
-                radius = r * 0.34f,
-                center = Offset(cx - r * 0.33f, cy - r * 0.36f)
-            )
-        }
-        val by = clothTop + (clothBottom - clothTop) * 0.52f
-        ball(w * 0.40f, by, w * 0.030f, Color(0xFFE8E4DC))
-        ball(w * 0.55f, by + h * 0.05f, w * 0.030f, Color(0xFFD4453A))
-        ball(w * 0.63f, by - h * 0.03f, w * 0.030f, Color(0xFF14171B))
-    }
-}
-
