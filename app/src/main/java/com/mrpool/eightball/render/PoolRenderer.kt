@@ -52,6 +52,8 @@ class PoolRenderer(
     private var woodTexture = 0
     private var shadowTexture = 0
     private var uploadedStyleKey = 0
+    /** What is bound to texture unit 0, so the same bind is not sent twice. */
+    private var boundTexture = -1
 
     private val projection = FloatArray(16)
     private val view = FloatArray(16)
@@ -79,6 +81,15 @@ class PoolRenderer(
     // ------------------------------------------------------------------ GL lifecycle
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        // Getting here a second time means the EGL context was lost and remade, which is
+        // what happens when the phone takes the app's graphics memory back while the
+        // player is elsewhere. Every handle in these fields belongs to the context that
+        // is gone. The ball textures below are rebuilt unconditionally so they survived
+        // it; the cloth and the wood did not, because uploadSurfaceTextures saw its own
+        // cached key still matching and skipped the work, leaving the table drawn with a
+        // texture name that no longer refers to anything.
+        releaseGpuResources()
+
         GLES30.glClearColor(0.035f, 0.05f, 0.06f, 1f)
         GLES30.glEnable(GLES30.GL_DEPTH_TEST)
         GLES30.glEnable(GLES30.GL_CULL_FACE)
@@ -87,7 +98,10 @@ class PoolRenderer(
 
         program = ShaderProgram(Shaders.VERTEX, Shaders.FRAGMENT)
 
-        sphere = MeshBuilders.sphere().also { it.upload() }
+        // A ball is sixty or so pixels across on a phone. Twenty eight by forty put
+        // better than two thousand triangles into that, most of them smaller than a
+        // pixel, which is the one thing a mobile GPU is worst at.
+        sphere = MeshBuilders.sphere(stacks = 20, slices = 32).also { it.upload() }
         unitBox = MeshBuilders.box(1f, 1f, 1f).also { it.upload() }
         disc = MeshBuilders.disc().also { it.upload() }
         quad = MeshBuilders.quadXZ().also { it.upload() }
@@ -99,7 +113,45 @@ class PoolRenderer(
         }
         shadowTexture = Textures.upload(Textures.shadowBitmap())
         uploadSurfaceTextures()
+        boundTexture = -1
         lastFrameNanos = System.nanoTime()
+    }
+
+    /**
+     * Drops every GPU handle this renderer is holding, and the bookkeeping that goes with
+     * them, so the next upload starts from nothing.
+     *
+     * The deletes are belt and braces: a context that has already been destroyed took its
+     * objects with it, and GL ignores a name it does not know. What actually matters is
+     * the fields going back to zero, because that is what makes the cloth, the wood and
+     * the texture bind cache be built again for the context that now needs them.
+     */
+    private fun releaseGpuResources() {
+        program?.release()
+        program = null
+
+        if (::sphere.isInitialized) sphere.release()
+        if (::unitBox.isInitialized) unitBox.release()
+        if (::disc.isInitialized) disc.release()
+        if (::quad.isInitialized) quad.release()
+        if (::cueShaft.isInitialized) cueShaft.release()
+        if (::cueButt.isInitialized) cueButt.release()
+
+        val handles = ballTextures.toMutableList()
+        handles += feltTexture
+        handles += woodTexture
+        handles += shadowTexture
+        val live = handles.filter { it != 0 }.toIntArray()
+        if (live.isNotEmpty()) GLES30.glDeleteTextures(live.size, live, 0)
+
+        ballTextures.fill(0)
+        feltTexture = 0
+        woodTexture = 0
+        shadowTexture = 0
+        // Without this the cached key still matches the new style and the cloth and wood
+        // are never re-made for the context that now needs them.
+        uploadedStyleKey = 0
+        boundTexture = -1
     }
 
     private fun uploadSurfaceTextures() {
@@ -109,6 +161,9 @@ class PoolRenderer(
         feltTexture = Textures.upload(Textures.feltBitmap(style.feltColor), repeat = true)
         woodTexture = Textures.upload(Textures.woodBitmap(style.railColor), repeat = true)
         uploadedStyleKey = key
+        // Uploading binds and then unbinds unit 0, and a freed texture name gets handed
+        // straight back out, so what draw() believes is bound is no longer true.
+        boundTexture = -1
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -526,7 +581,10 @@ class PoolRenderer(
     ) {
         if (length <= 0.01f) return
         val dash = 0.032f
-        val gap = 0.022f
+        // Every dash is its own draw call, and a five star cue's guide runs most of the
+        // length of the table: at a fixed spacing that was fifty draws a frame spent on a
+        // dotted line. Past the cap the gaps open up instead, which reads the same.
+        val period = max(dash + 0.022f, (length - TableGeometry.BALL_RADIUS) / MAX_GUIDE_DASHES)
         var travelled = TableGeometry.BALL_RADIUS
         while (travelled < length) {
             val segment = min(dash, length - travelled)
@@ -536,7 +594,7 @@ class PoolRenderer(
             rotateY(model, atan2(direction.y, direction.x))
             scale(model, segment / 2f, 1f, 0.0032f)
             draw(shader, quad, model, color, alpha, 0, true, 1f, 0f)
-            travelled += dash + gap
+            travelled += period
         }
     }
 
@@ -627,8 +685,11 @@ class PoolRenderer(
         shader.setFloat("uSpecularStrength", specular)
         if (texture != 0) {
             shader.setInt("uUseTexture", 1)
-            GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture)
+            if (texture != boundTexture) {
+                GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+                GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture)
+                boundTexture = texture
+            }
         } else {
             shader.setInt("uUseTexture", 0)
         }
@@ -699,6 +760,9 @@ class PoolRenderer(
         private const val DEFAULT_PITCH = 1.34f
         private const val DEFAULT_DISTANCE = 2.36f
         private const val FIELD_OF_VIEW = 32f
+
+        /** Most dashes the aiming guide is allowed to be cut into. */
+        private const val MAX_GUIDE_DASHES = 20f
 
         // Heights and footprints live in TableLayers, where a unit test can check that no
         // two surfaces which overlap each other ever share one.

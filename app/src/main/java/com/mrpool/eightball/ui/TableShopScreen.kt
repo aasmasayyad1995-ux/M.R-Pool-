@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,7 +45,7 @@ fun TableShopScreen(
     onBuy: (PoolTableSkin) -> Unit,
     onEquip: (PoolTableSkin) -> Unit
 ) {
-    // Which table the panel at the top is showing. It starts on the table being played
+    // Which table the panel on the right is showing. It starts on the table being played
     // and follows whatever the player last touched, so the big picture is always of the
     // table they are thinking about rather than the one they already own.
     var previewId by remember { mutableStateOf(profile.equippedTable.id) }
@@ -57,39 +59,52 @@ fun TableShopScreen(
                 coins = profile.coins,
                 onBack = onBack
             )
-            TablePreviewPanel(
-                table = preview,
-                owned = profile.owns(preview),
-                equipped = profile.equippedTable.id == preview.id,
-                modifier = Modifier.padding(horizontal = 18.dp)
-            )
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(PoolTableSkin.ALL, key = { it.id }) { table ->
-                    TableCard(
-                        table = table,
-                        owned = profile.owns(table),
-                        equipped = profile.equippedTable.id == table.id,
-                        selected = table.id == preview.id,
-                        affordable = profile.coins >= table.price,
-                        onSelect = { previewId = table.id },
-                        onBuy = { previewId = table.id; onBuy(table) },
-                        onEquip = { previewId = table.id; onEquip(table) }
-                    )
+            // The phone is held sideways, so the two halves of a shop sit side by side:
+            // the list you pick from on the left, the table you picked on the right. One
+            // above the other left the list two rows tall and the picture no bigger than
+            // it had to be.
+            Row(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1.15f)
+                        .fillMaxHeight(),
+                    contentPadding = PaddingValues(
+                        start = 18.dp, end = 10.dp, top = 4.dp, bottom = 24.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(PoolTableSkin.ALL, key = { it.id }) { table ->
+                        TableCard(
+                            table = table,
+                            owned = profile.owns(table),
+                            equipped = profile.equippedTable.id == table.id,
+                            selected = table.id == preview.id,
+                            affordable = profile.coins >= table.price,
+                            onSelect = { previewId = table.id },
+                            onBuy = { previewId = table.id; onBuy(table) },
+                            onEquip = { previewId = table.id; onEquip(table) }
+                        )
+                    }
                 }
+                TablePreviewPanel(
+                    table = preview,
+                    owned = profile.owns(preview),
+                    equipped = profile.equippedTable.id == preview.id,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 18.dp)
+                )
             }
         }
     }
 }
 
 /**
- * The showcase above the list: one table, drawn big enough to be worth wanting.
+ * The showcase beside the list: one table, drawn big enough to be worth wanting.
  *
- * The thumbnail in a row has to survive being 84dp wide, so it can only ever be a hint.
- * This is where the table is actually sold.
+ * The thumbnail in a row has to survive being a hundred points wide, so it can only ever
+ * be a hint. This is where the table is actually sold.
  */
 @Composable
 private fun TablePreviewPanel(
@@ -102,48 +117,49 @@ private fun TablePreviewPanel(
     val rail = Color(table.railColor.toInt())
     val trim = Color(table.trimColor.toInt())
 
-    Row(
+    Column(
         modifier = modifier
-            .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(
-                Brush.horizontalGradient(listOf(felt.darken(0.76f), Ink, InkSoft))
+                Brush.verticalGradient(listOf(felt.darken(0.74f), Ink, InkSoft))
             )
             .border(BorderStroke(1.dp, trim.copy(alpha = 0.45f)), RoundedCornerShape(20.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Canvas(modifier = Modifier.size(width = 240.dp, height = 104.dp)) {
+        // Whatever the four lines below do not want. A fixed height looked right on the
+        // phone it was measured on and spilled off the bottom of a shorter one.
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .heightIn(min = 96.dp)
+        ) {
             drawPoolTable(felt = felt, rail = rail, trim = trim, detailed = true)
         }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Text(table.name, style = MaterialTheme.typography.headlineMedium, color = Chalk)
-            Text(
-                "${table.venue} · ${table.clothSpeed.label}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Chalk.copy(alpha = 0.6f)
-            )
-            Text(
-                when {
-                    equipped -> "You are playing on this table"
-                    owned -> "Unlocked · tap Play to use it"
-                    table.isFree -> "Free · plays slow and forgiving"
-                    else -> "${formatCoins(table.price)} coins to unlock"
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (equipped) Gold else Chalk.copy(alpha = 0.85f)
-            )
-            Text(
-                "Tap any table below to see it here",
-                style = MaterialTheme.typography.labelSmall,
-                color = Chalk.copy(alpha = 0.35f),
-                modifier = Modifier.padding(top = 2.dp)
-            )
-        }
+        Text(table.name, style = MaterialTheme.typography.headlineMedium, color = Chalk)
+        Text(
+            "${table.venue} · ${table.clothSpeed.label}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Chalk.copy(alpha = 0.6f)
+        )
+        Text(
+            when {
+                equipped -> "You are playing on this table"
+                owned -> "Unlocked · tap Play to use it"
+                table.isFree -> "Free · plays slow and forgiving"
+                else -> "${formatCoins(table.price)} coins to unlock"
+            },
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (equipped) Gold else Chalk.copy(alpha = 0.85f)
+        )
+        Text(
+            "Tap a table on the left to see it here",
+            style = MaterialTheme.typography.labelSmall,
+            color = Chalk.copy(alpha = 0.35f),
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 

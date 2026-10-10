@@ -13,6 +13,7 @@ import java.nio.IntBuffer
  */
 class Mesh(private val vertices: FloatArray, private val indices: IntArray) {
 
+    private var vao = 0
     private var vbo = 0
     private var ibo = 0
     private var uploaded = false
@@ -25,6 +26,9 @@ class Mesh(private val vertices: FloatArray, private val indices: IntArray) {
         GLES30.glGenBuffers(2, buffers, 0)
         vbo = buffers[0]
         ibo = buffers[1]
+        val arrays = IntArray(1)
+        GLES30.glGenVertexArrays(1, arrays, 0)
+        vao = arrays[0]
 
         val vertexBuffer: FloatBuffer = ByteBuffer
             .allocateDirect(vertices.size * 4)
@@ -40,14 +44,29 @@ class Mesh(private val vertices: FloatArray, private val indices: IntArray) {
             .put(indices)
         indexBuffer.position(0)
 
+        // The attribute layout is recorded once, into a vertex array object, instead of
+        // being described again on every draw. The table, the balls, the guide dashes and
+        // the cue came to something like a hundred and thirty draws a frame, and each one
+        // was spending fourteen calls into the driver saying the same thing about where
+        // the positions and the normals live. A bound VAO already knows.
+        GLES30.glBindVertexArray(vao)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vbo)
         GLES30.glBufferData(
             GLES30.GL_ARRAY_BUFFER, vertices.size * 4, vertexBuffer, GLES30.GL_STATIC_DRAW
         )
+        // The element buffer binding belongs to the VAO, so it is made while it is bound
+        // and deliberately not cleared until after it is let go of.
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ibo)
         GLES30.glBufferData(
             GLES30.GL_ELEMENT_ARRAY_BUFFER, indices.size * 4, indexBuffer, GLES30.GL_STATIC_DRAW
         )
+        GLES30.glEnableVertexAttribArray(0)
+        GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, STRIDE, 0)
+        GLES30.glEnableVertexAttribArray(1)
+        GLES30.glVertexAttribPointer(1, 3, GLES30.GL_FLOAT, false, STRIDE, 12)
+        GLES30.glEnableVertexAttribArray(2)
+        GLES30.glVertexAttribPointer(2, 2, GLES30.GL_FLOAT, false, STRIDE, 24)
+        GLES30.glBindVertexArray(0)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
         uploaded = true
@@ -55,28 +74,18 @@ class Mesh(private val vertices: FloatArray, private val indices: IntArray) {
 
     fun draw() {
         if (!uploaded) upload()
-        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vbo)
-        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ibo)
-
-        GLES30.glEnableVertexAttribArray(0)
-        GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, STRIDE, 0)
-        GLES30.glEnableVertexAttribArray(1)
-        GLES30.glVertexAttribPointer(1, 3, GLES30.GL_FLOAT, false, STRIDE, 12)
-        GLES30.glEnableVertexAttribArray(2)
-        GLES30.glVertexAttribPointer(2, 2, GLES30.GL_FLOAT, false, STRIDE, 24)
-
+        GLES30.glBindVertexArray(vao)
         GLES30.glDrawElements(GLES30.GL_TRIANGLES, indices.size, GLES30.GL_UNSIGNED_INT, 0)
-
-        GLES30.glDisableVertexAttribArray(0)
-        GLES30.glDisableVertexAttribArray(1)
-        GLES30.glDisableVertexAttribArray(2)
-        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
-        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES30.glBindVertexArray(0)
     }
 
     fun release() {
         if (!uploaded) return
         GLES30.glDeleteBuffers(2, intArrayOf(vbo, ibo), 0)
+        GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0)
+        vao = 0
+        vbo = 0
+        ibo = 0
         uploaded = false
     }
 

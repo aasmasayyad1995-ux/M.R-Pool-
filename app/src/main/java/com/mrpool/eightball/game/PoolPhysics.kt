@@ -406,15 +406,49 @@ class PoolPhysics(
             // A ball frozen against a cushion sits exactly on this line, so only a ball
             // clearly past it has gone into a mouth. The strandings seen in testing were
             // 60 to 80 millimetres out; the margin only has to beat arithmetic.
-            if (pastCushions(b.position) <= JAW_DROP_MARGIN) continue
-            val pocket = TableGeometry.pockets.minByOrNull { it.center.distanceTo(b.position) }
-                ?: continue
+            val pocket = if (pastCushions(b.position) > JAW_DROP_MARGIN) {
+                TableGeometry.pockets.minByOrNull { it.center.distanceTo(b.position) }
+            } else {
+                cornerThroat(b.position)
+            } ?: continue
             collisionListener?.onPocketed(b.number, 0f)
             b.pocketed = true
             b.stop()
             b.position = pocket.center
             events?.pocketed?.add(b.number)
         }
+    }
+
+    /**
+     * The corner pocket a ball at rest has already fallen into, or null.
+     *
+     * A ball running down a long rail into a corner passes the end of the cushion about
+     * twenty millimetres before its centre comes within [Pocket.radius] of the pocket.
+     * Stop it in that band and nobody owns it: the cushion has ended, so nothing holds
+     * it up, [checkPockets] will not take it, and [pastCushions] still calls it a ball on
+     * the table. It hangs in the jaws for the rest of the game. On a real table it is
+     * already falling, and a player who watched it roll in is owed the pot.
+     *
+     * The test is the corner's own cut: the ball has to be past the end of both cushions
+     * that meet there -- which no ball resting against either of them is, and no ball
+     * merely sitting in front of the pocket is either -- and within a ball's width of
+     * the throat. A ball parked across the mouth on the diagonal is further out than
+     * that and stays where it is, because it is genuinely still on the table.
+     *
+     * Side pockets need none of this: their cut is shallower than their radius, so a
+     * ball that reaches one is swallowed by [checkPockets] while it is still moving.
+     */
+    private fun cornerThroat(p: Vec2): Pocket? {
+        for (pocket in TableGeometry.pockets) {
+            if (pocket.isSide) continue
+            val alongRail = if (pocket.center.x < 0f) -p.x else p.x
+            val acrossRail = if (pocket.center.y < 0f) -p.y else p.y
+            if (alongRail <= TableGeometry.HALF_LENGTH - TableGeometry.CORNER_MOUTH) continue
+            if (acrossRail <= TableGeometry.HALF_WIDTH - TableGeometry.CORNER_MOUTH) continue
+            if (p.distanceTo(pocket.center) > pocket.radius + radius) continue
+            return pocket
+        }
+        return null
     }
 
     /** How far a ball centre is past the cushion line; negative while it is safely inside. */

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,35 +56,45 @@ fun CueShopScreen(
                 coins = profile.coins,
                 onBack = onBack
             )
-            CuePreviewPanel(
-                cue = preview,
-                owned = profile.owns(preview),
-                equipped = profile.equippedCue.id == preview.id,
-                modifier = Modifier.padding(horizontal = 18.dp)
-            )
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(CueStick.ALL, key = { it.id }) { cue ->
-                    CueCard(
-                        cue = cue,
-                        owned = profile.owns(cue),
-                        equipped = profile.equippedCue.id == cue.id,
-                        selected = cue.id == preview.id,
-                        affordable = profile.coins >= cue.price,
-                        onSelect = { previewId = cue.id },
-                        onBuy = { previewId = cue.id; onBuy(cue) },
-                        onEquip = { previewId = cue.id; onEquip(cue) }
-                    )
+            // Rack on the left, the cue you picked up on the right.
+            Row(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1.15f)
+                        .fillMaxHeight(),
+                    contentPadding = PaddingValues(
+                        start = 18.dp, end = 10.dp, top = 4.dp, bottom = 24.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(CueStick.ALL, key = { it.id }) { cue ->
+                        CueCard(
+                            cue = cue,
+                            owned = profile.owns(cue),
+                            equipped = profile.equippedCue.id == cue.id,
+                            selected = cue.id == preview.id,
+                            affordable = profile.coins >= cue.price,
+                            onSelect = { previewId = cue.id },
+                            onBuy = { previewId = cue.id; onBuy(cue) },
+                            onEquip = { previewId = cue.id; onEquip(cue) }
+                        )
+                    }
                 }
+                CuePreviewPanel(
+                    cue = preview,
+                    owned = profile.owns(preview),
+                    equipped = profile.equippedCue.id == preview.id,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 18.dp)
+                )
             }
         }
     }
 }
 
-/** The rack light above the list: one cue, drawn the length of the screen. */
+/** The rack light beside the list: one cue, drawn the width of the panel. */
 @Composable
 private fun CuePreviewPanel(
     cue: CueStick,
@@ -97,28 +108,19 @@ private fun CuePreviewPanel(
 
     Column(
         modifier = modifier
-            .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.horizontalGradient(listOf(Ink, accent.darken(0.74f), InkSoft)))
+            .background(Brush.verticalGradient(listOf(accent.darken(0.74f), Ink, InkSoft)))
             .border(BorderStroke(1.dp, accent.copy(alpha = 0.45f)), RoundedCornerShape(20.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(cue.name, style = MaterialTheme.typography.headlineMedium, color = Chalk)
-                Text(
-                    cue.tagline,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Chalk.copy(alpha = 0.6f)
-                )
-            }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                StarRating("POWER", cue.powerStars)
-                StarRating("AIM  ", cue.aimStars)
-                StarRating("SPIN ", cue.spinStars)
-            }
-        }
+        Text(cue.name, style = MaterialTheme.typography.headlineMedium, color = Chalk)
+        Text(
+            cue.tagline,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Chalk.copy(alpha = 0.6f),
+            maxLines = 3
+        )
         // A cue is fifty times longer than it is thick, so drawn honestly across a phone
         // held sideways it is a very thin thing. The lit shelf behind it is what stops it
         // looking like a scratch on the screen.
@@ -141,15 +143,25 @@ private fun CuePreviewPanel(
                 drawCueStick(shaft = shaft, butt = butt, accent = accent, detailed = true)
             }
         }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            StarRating("POWER", cue.powerStars)
+            StarRating("AIM  ", cue.aimStars)
+            StarRating("SPIN ", cue.spinStars)
+        }
         Text(
             when {
                 equipped -> "In your hands right now"
                 owned -> "Unlocked · tap Equip to use it"
                 cue.isFree -> "Free · yours already"
-                else -> "${formatCoins(cue.price)} coins to unlock · tap any cue below"
+                else -> "${formatCoins(cue.price)} coins to unlock"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = if (equipped) Gold else Chalk.copy(alpha = 0.7f)
+        )
+        Text(
+            "Tap a cue on the left to see it here",
+            style = MaterialTheme.typography.labelSmall,
+            color = Chalk.copy(alpha = 0.35f)
         )
     }
 }
