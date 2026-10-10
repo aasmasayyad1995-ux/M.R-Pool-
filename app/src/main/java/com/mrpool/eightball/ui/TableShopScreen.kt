@@ -2,6 +2,11 @@ package com.mrpool.eightball.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -135,69 +140,112 @@ private fun TableCard(
 /** A miniature of the table, drawn from the same colours the 3D renderer uses. */
 @Composable
 private fun TablePreview(table: PoolTableSkin) {
-    Box(
-        modifier = Modifier
-            .size(width = 86.dp, height = 52.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(table.railColor.toInt()))
-            .padding(5.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(table.feltColor.toInt()))
-        ) {
-            val pocket = Color(0xFF05070A)
-            Box(
-                modifier = Modifier
-                    .size(9.dp)
-                    .clip(CircleShape)
-                    .background(pocket)
-                    .align(Alignment.TopStart)
+    val felt = Color(table.feltColor.toInt())
+    val rail = Color(table.railColor.toInt())
+    val trim = Color(table.trimColor.toInt())
+
+    Canvas(modifier = Modifier.size(width = 104.dp, height = 68.dp)) {
+        val w = size.width
+        val h = size.height
+
+        // The table is drawn as if looked at from the near end and slightly above, so the
+        // far rail is narrower than the near one. That one trapezoid is what makes a flat
+        // rectangle read as a table standing in a room.
+        val farInset = w * 0.17f
+        val top = h * 0.17f
+        val bottom = h * 0.86f
+
+        fun outer(): Path = Path().apply {
+            moveTo(farInset, top)
+            lineTo(w - farInset, top)
+            lineTo(w, bottom)
+            lineTo(0f, bottom)
+            close()
+        }
+
+        // A soft shadow on the floor, so the table sits rather than floats.
+        drawOval(
+            color = Color(0x55000000),
+            topLeft = Offset(w * 0.06f, bottom - h * 0.06f),
+            size = Size(w * 0.88f, h * 0.17f)
+        )
+
+        // The rail frame: lit along the top edge, dark along the bottom, which is where
+        // the wood gets its thickness from.
+        drawPath(
+            path = outer(),
+            brush = Brush.verticalGradient(
+                0f to rail.lighten(0.35f),
+                0.45f to rail,
+                1f to rail.darken(0.45f),
+                startY = top,
+                endY = bottom
             )
-            Box(
-                modifier = Modifier
-                    .size(9.dp)
-                    .clip(CircleShape)
-                    .background(pocket)
-                    .align(Alignment.TopEnd)
+        )
+
+        // The cloth, inset inside the rails and keeping the same perspective.
+        val clothFar = farInset + w * 0.085f
+        val clothTop = top + h * 0.13f
+        val clothBottom = bottom - h * 0.13f
+        val cloth = Path().apply {
+            moveTo(clothFar, clothTop)
+            lineTo(w - clothFar, clothTop)
+            lineTo(w - w * 0.055f, clothBottom)
+            lineTo(w * 0.055f, clothBottom)
+            close()
+        }
+        drawPath(
+            path = cloth,
+            brush = Brush.verticalGradient(
+                0f to felt.darken(0.30f),       // far end falls away from the light
+                0.42f to felt.lighten(0.12f),   // the lamp sits over the middle
+                1f to felt.darken(0.12f),
+                startY = clothTop,
+                endY = clothBottom
             )
-            Box(
-                modifier = Modifier
-                    .size(9.dp)
-                    .clip(CircleShape)
-                    .background(pocket)
-                    .align(Alignment.BottomStart)
+        )
+
+        // Six pockets. Ellipses rather than circles: a round hole seen at an angle is one.
+        fun pocket(cx: Float, cy: Float, r: Float) {
+            drawOval(                                   // leather lip, catching the light
+                color = trim.lighten(0.25f),
+                topLeft = Offset(cx - r, cy - r * 0.62f),
+                size = Size(r * 2f, r * 1.24f)
             )
-            Box(
-                modifier = Modifier
-                    .size(9.dp)
-                    .clip(CircleShape)
-                    .background(pocket)
-                    .align(Alignment.BottomEnd)
-            )
-            Box(
-                modifier = Modifier
-                    .size(width = 8.dp, height = 8.dp)
-                    .clip(CircleShape)
-                    .background(pocket)
-                    .align(Alignment.TopCenter)
-            )
-            Box(
-                modifier = Modifier
-                    .size(width = 8.dp, height = 8.dp)
-                    .clip(CircleShape)
-                    .background(pocket)
-                    .align(Alignment.BottomCenter)
-            )
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(Color(table.trimColor.toInt()))
-                    .align(Alignment.Center)
+            drawOval(                                   // the drop itself
+                color = Color(0xFF05070A),
+                topLeft = Offset(cx - r * 0.74f, cy - r * 0.44f),
+                size = Size(r * 1.48f, r * 0.88f)
             )
         }
+        val rFar = w * 0.042f
+        val rNear = w * 0.055f
+        pocket(clothFar, clothTop, rFar)
+        pocket(w - clothFar, clothTop, rFar)
+        pocket(w * 0.055f, clothBottom, rNear)
+        pocket(w - w * 0.055f, clothBottom, rNear)
+        pocket(w * 0.5f, clothTop + h * 0.005f, rFar * 0.92f)
+        pocket(w * 0.5f, clothBottom, rNear * 0.92f)
+
+        // Three balls, small, just enough to say what the table is for. Each gets a
+        // highlight up and left, which is the whole trick for making a disc look round.
+        fun ball(cx: Float, cy: Float, r: Float, c: Color) {
+            drawOval(
+                color = Color(0x44000000),
+                topLeft = Offset(cx - r, cy - r * 0.2f),
+                size = Size(r * 2.1f, r * 0.8f)
+            )
+            drawCircle(c, radius = r, center = Offset(cx, cy))
+            drawCircle(
+                Color(0x66FFFFFF),
+                radius = r * 0.34f,
+                center = Offset(cx - r * 0.33f, cy - r * 0.36f)
+            )
+        }
+        val by = clothTop + (clothBottom - clothTop) * 0.52f
+        ball(w * 0.40f, by, w * 0.030f, Color(0xFFE8E4DC))
+        ball(w * 0.55f, by + h * 0.05f, w * 0.030f, Color(0xFFD4453A))
+        ball(w * 0.63f, by - h * 0.03f, w * 0.030f, Color(0xFF14171B))
     }
 }
+

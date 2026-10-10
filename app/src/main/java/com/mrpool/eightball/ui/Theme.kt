@@ -51,3 +51,21 @@ fun MrPoolTheme(content: @Composable () -> Unit) {
         content = content
     )
 }
+
+/**
+ * A lighter shade of this colour, for a surface turned towards the light.
+ *
+ * The shop previews draw a table and a cue with nothing but flat fills, so every bit of
+ * roundness and depth in them comes from putting a lighter version of one colour where
+ * the light would fall and a darker one where it would not.
+ */
+fun Color.lighten(amount: Float): Color = Color(
+    red + (1f - red) * amount,
+    green + (1f - green) * amount,
+    blue + (1f - blue) * amount,
+    alpha
+)
+
+/** A darker shade of this colour, for a surface turned away from the light. */
+fun Color.darken(amount: Float): Color =
+    Color(red * (1f - amount), green * (1f - amount), blue * (1f - amount), alpha)
