@@ -134,3 +134,92 @@ class JawsTest {
         assertTrue("and not left outside the cushion", arriving.position.y >= -limY - 0.002f)
     }
 }
+
+/**
+ * A ball that stops in the throat of a corner pocket, on the table side of the cushion
+ * line.
+ *
+ * Rolling a ball straight at every pocket from a spread of angles, distances and speeds
+ * — 2,504 shots whose body reached a mouth — turned up four that arrived and then hung:
+ * all four at a corner, all four 66 mm from the pocket centre, which is four millimetres
+ * outside what the pocket swallows and twenty past where the cushion stops. Nothing was
+ * holding them up and nothing would take them.
+ */
+class CornerThroatTest {
+
+    private fun table(vararg balls: Ball) =
+        PoolPhysics(balls.toMutableList(), ClothProperties.TOURNAMENT)
+
+    private fun ballAt(number: Int, x: Float, y: Float) = Ball(number, Vec2(x, y))
+
+    @Test
+    fun `a ball resting in the corner throat drops`() {
+        // Straight off the probe: spread -20 degrees, 0.85 m out, 1.3 m/s.
+        val hanger = ballAt(5, -1.064f, -0.525f)
+        val physics = table(ballAt(0, 0f, 0f), hanger)
+        val events = ShotEvents()
+
+        physics.settle(events)
+
+        assertTrue("the ball should have dropped", hanger.pocketed)
+        assertEquals(listOf(5), events.pocketed)
+    }
+
+    @Test
+    fun `all four corners behave the same way`() {
+        for (sx in listOf(-1f, 1f)) {
+            for (sy in listOf(-1f, 1f)) {
+                val hanger = ballAt(9, sx * 1.064f, sy * 0.525f)
+                table(ballAt(0, 0f, 0f), hanger).settle()
+                assertTrue("corner ($sx, $sy) should drop it", hanger.pocketed)
+            }
+        }
+    }
+
+    @Test
+    fun `a ball frozen against the cushion short of the cut stays on the table`() {
+        // Hard against the long rail but still with cushion behind it: the cut does not
+        // start until 1.045.
+        val frozen = ballAt(3, -1.030f, -TableGeometry.HALF_WIDTH + TableGeometry.BALL_RADIUS)
+        val physics = table(ballAt(0, 0f, 0f), frozen)
+
+        physics.settle()
+
+        assertFalse("a ball on the cushion is not in the pocket", frozen.pocketed)
+    }
+
+    @Test
+    fun `a ball parked across the mouth on the diagonal stays on the table`() {
+        // Inside the corner's cut on both rails, but sitting out across the opening
+        // rather than down the throat: 106 mm from the pocket centre.
+        val guard = ballAt(4, -1.046f, -0.486f)
+        val physics = table(ballAt(0, 0f, 0f), guard)
+
+        physics.settle()
+
+        assertFalse("a ball in front of the pocket is still in play", guard.pocketed)
+    }
+
+    @Test
+    fun `a ball in the middle of the table is left alone`() {
+        val free = ballAt(7, 0.2f, 0.1f)
+        val physics = table(ballAt(0, 0f, 0f), free)
+
+        physics.settle()
+
+        assertFalse(free.pocketed)
+    }
+
+    @Test
+    fun `side pockets need no throat rule because they swallow on the way in`() {
+        // A ball crawling into a side pocket is taken while it is still moving, so by the
+        // time settle looks there is nothing left to rescue.
+        val rolling = ballAt(2, -0.02f, -0.50f)
+        val physics = table(ballAt(0, 0f, 0f), rolling)
+        rolling.velocity = Vec2(0.0f, -0.35f)
+
+        physics.simulateUntilRest()
+
+        assertTrue("the side pocket should have taken it on the roll", rolling.pocketed)
+    }
+}

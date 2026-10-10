@@ -11,6 +11,18 @@ class ShaderProgram(vertexSource: String, fragmentSource: String) {
     private val uniforms = HashMap<String, Int>()
     private val attributes = HashMap<String, Int>()
 
+    /**
+     * The last value pushed for each uniform.
+     *
+     * Most of what a draw says is what the draw before it said: the same lighting model,
+     * the same shininess, the same "no texture on this one". Sending it again is a call
+     * into the driver that changes nothing, and across a hundred draws a frame there were
+     * a few hundred of them. Four floats is enough room for every uniform here; a matrix
+     * is compared in full, against its own copy.
+     */
+    private val scalarCache = HashMap<Int, FloatArray>()
+    private val matrixCache = HashMap<Int, FloatArray>()
+
     fun use() = GLES30.glUseProgram(handle)
 
     fun uniform(name: String): Int = uniforms.getOrPut(name) {
@@ -21,28 +33,62 @@ class ShaderProgram(vertexSource: String, fragmentSource: String) {
         GLES30.glGetAttribLocation(handle, name)
     }
 
+    /** True when [values] differ from what this uniform was last given. */
+    private fun changed(location: Int, vararg values: Float): Boolean {
+        val previous = scalarCache[location]
+        if (previous != null && previous.size == values.size) {
+            var same = true
+            for (i in values.indices) if (previous[i] != values[i]) { same = false; break }
+            if (same) return false
+            values.copyInto(previous)
+        } else {
+            scalarCache[location] = values.copyOf()
+        }
+        return true
+    }
+
+    private fun changedMatrix(location: Int, matrix: FloatArray): Boolean {
+        val previous = matrixCache[location]
+        if (previous != null && previous.contentEquals(matrix)) return false
+        if (previous != null && previous.size == matrix.size) matrix.copyInto(previous)
+        else matrixCache[location] = matrix.copyOf()
+        return true
+    }
+
     fun setMatrix(name: String, matrix: FloatArray) {
-        GLES30.glUniformMatrix4fv(uniform(name), 1, false, matrix, 0)
+        val location = uniform(name)
+        if (!changedMatrix(location, matrix)) return
+        GLES30.glUniformMatrix4fv(location, 1, false, matrix, 0)
     }
 
     fun setMatrix3(name: String, matrix: FloatArray) {
-        GLES30.glUniformMatrix3fv(uniform(name), 1, false, matrix, 0)
+        val location = uniform(name)
+        if (!changedMatrix(location, matrix)) return
+        GLES30.glUniformMatrix3fv(location, 1, false, matrix, 0)
     }
 
     fun setVec3(name: String, x: Float, y: Float, z: Float) {
-        GLES30.glUniform3f(uniform(name), x, y, z)
+        val location = uniform(name)
+        if (!changed(location, x, y, z)) return
+        GLES30.glUniform3f(location, x, y, z)
     }
 
     fun setVec4(name: String, x: Float, y: Float, z: Float, w: Float) {
-        GLES30.glUniform4f(uniform(name), x, y, z, w)
+        val location = uniform(name)
+        if (!changed(location, x, y, z, w)) return
+        GLES30.glUniform4f(location, x, y, z, w)
     }
 
     fun setFloat(name: String, value: Float) {
-        GLES30.glUniform1f(uniform(name), value)
+        val location = uniform(name)
+        if (!changed(location, value)) return
+        GLES30.glUniform1f(location, value)
     }
 
     fun setInt(name: String, value: Int) {
-        GLES30.glUniform1i(uniform(name), value)
+        val location = uniform(name)
+        if (!changed(location, value.toFloat())) return
+        GLES30.glUniform1i(location, value)
     }
 
     fun release() {
