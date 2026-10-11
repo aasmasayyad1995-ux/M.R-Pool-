@@ -61,14 +61,24 @@ data class GameUiState(
     val spin: Vec2 = Vec2.ZERO
 )
 
-/** How the aim assist should be drawn this frame. */
+/**
+ * How the aim assist should be drawn this frame.
+ *
+ * One line for the cue ball and one for the ball it hits, and no more than that. There
+ * used to be a third, showing where the cue ball would carry on to after the contact; it
+ * answered a question nobody was asking while they were lining up a pot, and three
+ * coloured lines leaving the same point is hard to read at a glance.
+ */
 data class AimPreview(
     val from: Vec2,
     val direction: Vec2,
     val contactPoint: Vec2,
     val ghostBall: Vec2?,
     val objectDirection: Vec2?,
-    val cueBallAfter: Vec2?
+    /** Where the ball that gets hit is sitting now. */
+    val objectBall: Vec2? = null,
+    /** How far that ball runs before it meets another ball or a cushion. */
+    val objectTravel: Float = 0f
 )
 
 /**
@@ -546,20 +556,23 @@ class GameController(
         if (cueBall.pocketed) return null
         val from = ballInHandGhost ?: cueBall.position
         val dir = Vec2.fromAngle(aimAngle)
-        val hit = com.mrpool.eightball.ai.AimSolver.firstContactAlong(session.physics, from, dir)
-            ?: return AimPreview(from, dir, from + dir * 0.5f, null, null, null)
+        val solver = com.mrpool.eightball.ai.AimSolver
+        val hit = solver.firstContactAlong(session.physics, from, dir)
+            ?: return AimPreview(from, dir, from + dir * 0.5f, null, null)
 
         val contact = hit.point
         val center = hit.ballCenter
         return if (center != null) {
             val objectDir = (center - contact).normalized()
-            val tangent = objectDir.perpendicular().let {
-                if (it.dot(dir) >= 0f) it else -it
-            }
-            val cueAfter = contact + tangent * CUE_TANGENT_PREVIEW
-            AimPreview(from, dir, contact, contact, objectDir, cueAfter)
+            // The line is only worth drawing if it stops where the ball would: run the
+            // same ray on from the ball that is about to be hit and see what it meets.
+            // Casting from the ball's own centre is safe, because a ball no distance
+            // along the ray is not a thing the ray can hit.
+            val onward = solver.firstContactAlong(session.physics, center, objectDir)
+            val travel = onward?.point?.distanceTo(center) ?: OBJECT_LINE_FALLBACK
+            AimPreview(from, dir, contact, contact, objectDir, center, travel)
         } else {
-            AimPreview(from, dir, contact, null, null, null)
+            AimPreview(from, dir, contact, null, null)
         }
     }
 
@@ -645,6 +658,7 @@ class GameController(
         private const val STROKE_SECONDS = 0.16f
         private const val PLACEMENT_THINK_MILLIS = 700L
         private const val BASE_GUIDE_LENGTH = 0.55f
-        private const val CUE_TANGENT_PREVIEW = 0.28f
+        /** Line length when nothing at all lies ahead of the ball, which should not happen. */
+        private const val OBJECT_LINE_FALLBACK = 0.4f
     }
 }

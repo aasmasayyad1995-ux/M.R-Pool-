@@ -124,16 +124,8 @@ fun SplashScreen(onFinished: () -> Unit) {
                     )
             )
 
-            Text(
-                text = "PRESENTS",
-                color = Chalk.copy(alpha = 0.42f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 6.sp,
-                modifier = Modifier
-                    .padding(top = 14.dp)
-                    .alpha(ruleWidth.value)
-            )
+            // The card used to say PRESENTS under the rule. It is the studio's own name
+            // on its own game, so there is nobody to present it to.
         }
 
         Text(
