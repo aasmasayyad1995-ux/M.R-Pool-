@@ -557,12 +557,24 @@ class PoolRenderer(
                 scale(model, r, r, r)
                 draw(shader, sphere, model, 0xFFFFFFFF.toInt(), 0.24f, 0, true, 1f, 0f)
 
-                preview.objectDirection?.let { dir ->
-                    drawSolidLine(shader, ghost, dir, 0.30f, 0xFFFFD34D.toInt(), 0.85f)
-                }
-                preview.cueBallAfter?.let { after ->
-                    val dir = (after - ghost).normalized()
-                    drawSolidLine(shader, ghost, dir, 0.22f, 0xFF7FF0FF.toInt(), 0.6f)
+                // One line, from the ball that is about to be hit to wherever it gets
+                // to. It starts at that ball's edge rather than its centre, so it reads
+                // as the ball setting off rather than a line drawn through it.
+                val objectBall = preview.objectBall
+                val objectDir = preview.objectDirection
+                if (objectBall != null && objectDir != null) {
+                    val start = TableGeometry.BALL_RADIUS
+                    val run = preview.objectTravel - start
+                    if (run > 0.01f) {
+                        drawSolidLine(
+                            shader,
+                            objectBall + objectDir * start,
+                            objectDir,
+                            run,
+                            0xFFFFFFFF.toInt(),
+                            0.8f
+                        )
+                    }
                 }
             }
         }
@@ -610,7 +622,7 @@ class PoolRenderer(
         identity(model)
         translate(model, mid.x, TableLayers.GUIDE_LINE, mid.y)
         rotateY(model, atan2(direction.y, direction.x))
-        scale(model, length / 2f, 1f, 0.0028f)
+        scale(model, length / 2f, 1f, 0.0034f)
         draw(shader, quad, model, color, alpha, 0, true, 1f, 0f)
     }
 
