@@ -29,6 +29,14 @@ jobs:
 
       - run: chmod +x gradlew
 
+      # Kotlin never looks inside the shader strings, so nothing else in the build
+      # would notice a typo in them until the table came up black on a phone.
+      - name: Check the shaders compile
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq glslang-tools
+          python3 tools/check_shaders.py
+
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 

@@ -193,9 +193,35 @@ object Shaders {
             float diffuse = max(dot(n, l), 0.0);
             // A soft fill light from the opposite side keeps the far side of balls readable.
             float fill = max(dot(n, normalize(vec3(-l.x, 0.35, -l.z))), 0.0) * 0.22;
-            float specular = pow(max(dot(n, h), 0.0), uShininess) * uSpecularStrength;
 
-            vec3 color = base.rgb * (0.30 + 0.78 * diffuse + fill) + vec3(specular);
+            // What is over a pool table is one lamp, not a sky. The pool it throws is
+            // long, because the table is, and it falls away towards both ends rather
+            // than stopping, so the cloth is brightest down the middle and the far
+            // corners sit at about three fifths of that. Flat light over the whole bed
+            // is the single thing that most makes a rendered table look drawn.
+            float fall = length(vWorldPos.xz / vec2(1.35, 0.85));
+            float lamp = 1.0 - 0.45 * smoothstep(0.20, 1.25, fall);
+
+            // Two lobes: a small hard one for the lamp's own reflection in the polish,
+            // and a wide soft one for the room around it. One lobe is either a dull
+            // sheen all over or a bright dot with nothing around it, and a ball is
+            // neither. The wide lobe is squared up from ndh rather than raised by pow,
+            // which costs four multiplies instead of a second transcendental.
+            float ndh = max(dot(n, h), 0.0);
+            float n2 = ndh * ndh;
+            float n4 = n2 * n2;
+            float n8 = n4 * n4;
+            float specular = pow(ndh, uShininess * 3.8) * uSpecularStrength * 1.7
+                           + n8 * n8 * uSpecularStrength * 0.30;
+
+            // Light grazing the edge. Without it a sphere lit from one side reads as a
+            // disc with a bright patch on it; this is the band that says it turns away.
+            float f = 1.0 - max(dot(n, v), 0.0);
+            float f2 = f * f;
+            float rim = f2 * f2 * f * 0.14;
+
+            vec3 color = base.rgb * (0.20 + 0.82 * diffuse + fill + rim) * lamp
+                       + vec3(specular * lamp);
             fragColor = vec4(color, base.a);
         }
     """

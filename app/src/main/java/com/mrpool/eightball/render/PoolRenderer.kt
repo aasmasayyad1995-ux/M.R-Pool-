@@ -499,14 +499,17 @@ class PoolRenderer(
         for (ball in controller.session.physics.balls) {
             if (ball.pocketed) continue
             identity(model)
+            // The shadow lands where the light is going, which is down and away from the
+            // player. It used to be pushed the other way, into the side of the ball the
+            // camera cannot see, so most of it was hidden under the ball that cast it.
             translate(
                 model,
-                ball.position.x,
+                ball.position.x + SHADOW_OFFSET_X * radius,
                 TableLayers.BALL_SHADOW,
-                ball.position.y + radius * 0.35f
+                ball.position.y + SHADOW_OFFSET_Z * radius
             )
-            scale(model, radius * 1.45f, 1f, radius * 1.45f)
-            draw(shader, disc, model, 0xFF000000.toInt(), 0.55f, shadowTexture, true, 1f, 0f)
+            scale(model, radius * 1.38f, 1f, radius * 1.38f)
+            draw(shader, disc, model, 0xFF000000.toInt(), 0.62f, shadowTexture, true, 1f, 0f)
         }
         GLES30.glDepthMask(true)
         GLES30.glDisable(GLES30.GL_BLEND)
@@ -775,6 +778,13 @@ class PoolRenderer(
 
         /** Most dashes the aiming guide is allowed to be cut into. */
         private const val MAX_GUIDE_DASHES = 20f
+
+        // Where a ball's shadow sits, in ball radii. Taken from the light direction the
+        // shader is given, flattened onto the cloth: a shadow that disagrees with the
+        // highlight on the ball above it is the sort of thing nobody can name and
+        // everybody can see.
+        private const val SHADOW_OFFSET_X = -0.255f
+        private const val SHADOW_OFFSET_Z = -0.334f
 
         // Heights and footprints live in TableLayers, where a unit test can check that no
         // two surfaces which overlap each other ever share one.
