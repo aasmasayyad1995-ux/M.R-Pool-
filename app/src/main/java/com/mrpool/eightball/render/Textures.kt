@@ -156,10 +156,13 @@ object Textures {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        // Dark and tight where the ball touches the cloth, then gone quickly. The old
+        // falloff was gentle the whole way out, which reads as a grey smudge under the
+        // ball rather than as a ball sitting on something.
         paint.shader = RadialGradient(
             size / 2f, size / 2f, size / 2f,
-            intArrayOf(0xB0000000.toInt(), 0x50000000, 0x00000000),
-            floatArrayOf(0f, 0.55f, 1f),
+            intArrayOf(0xC8000000.toInt(), 0x8A000000.toInt(), 0x30000000, 0x00000000),
+            floatArrayOf(0f, 0.34f, 0.62f, 1f),
             Shader.TileMode.CLAMP
         )
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
