@@ -67,6 +67,12 @@ class ShaderProgram(vertexSource: String, fragmentSource: String) {
         GLES30.glUniformMatrix3fv(location, 1, false, matrix, 0)
     }
 
+    fun setVec2(name: String, x: Float, y: Float) {
+        val location = uniform(name)
+        if (!changed(location, x, y)) return
+        GLES30.glUniform2f(location, x, y)
+    }
+
     fun setVec3(name: String, x: Float, y: Float, z: Float) {
         val location = uniform(name)
         if (!changed(location, x, y, z)) return
@@ -143,6 +149,11 @@ object Shaders {
         uniform mat4 uModel;
         uniform mat4 uViewProjection;
         uniform mat3 uNormalMatrix;
+        // How many times the texture repeats over this piece. Every surface here is
+        // stretched to its own size, so without it one square of cloth is smeared across
+        // the whole bed and the grain on a rail two and a half metres long is four
+        // enormous stripes.
+        uniform vec2 uUvScale;
 
         out vec3 vWorldPos;
         out vec3 vNormal;
@@ -152,7 +163,7 @@ object Shaders {
             vec4 world = uModel * vec4(aPosition, 1.0);
             vWorldPos = world.xyz;
             vNormal = normalize(uNormalMatrix * aNormal);
-            vTexCoord = aTexCoord;
+            vTexCoord = aTexCoord * uUvScale;
             gl_Position = uViewProjection * world;
         }
     """

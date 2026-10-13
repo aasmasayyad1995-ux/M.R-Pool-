@@ -50,8 +50,14 @@ object TableLayers {
     // apart that no two of them can ever be mistaken for the same plane.
     const val BALL_SHADOW = 0.001f
     const val MARKING = 0.002f
-    const val GUIDE_DASH = 0.003f
-    const val GUIDE_LINE = 0.004f
+    const val GUIDE_LINE = 0.003f
+
+    /**
+     * The outline of the cue ball where it will arrive. A millimetre above the lines
+     * rather than level with them: the guide line runs to the middle of the ring, so at
+     * the same height the two would be coplanar exactly where they overlap.
+     */
+    const val GHOST_RING = 0.004f
     const val POCKET_TRIM = 0.005f
     const val POCKET_HOLE = 0.006f
 

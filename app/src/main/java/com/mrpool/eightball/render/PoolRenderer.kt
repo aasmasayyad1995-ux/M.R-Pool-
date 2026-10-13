@@ -13,6 +13,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -44,12 +45,15 @@ class PoolRenderer(
     private lateinit var unitBox: Mesh
     private lateinit var disc: Mesh
     private lateinit var quad: Mesh
+    private lateinit var ring: Mesh
     private lateinit var cueShaft: Mesh
     private lateinit var cueButt: Mesh
+    private lateinit var cueBand: Mesh
 
     private val ballTextures = IntArray(16)
     private var feltTexture = 0
     private var woodTexture = 0
+    private var railTexture = 0
     private var shadowTexture = 0
     private var uploadedStyleKey = 0
     /** What is bound to texture unit 0, so the same bind is not sent twice. */
@@ -105,8 +109,13 @@ class PoolRenderer(
         unitBox = MeshBuilders.box(1f, 1f, 1f).also { it.upload() }
         disc = MeshBuilders.disc().also { it.upload() }
         quad = MeshBuilders.quadXZ().also { it.upload() }
+        ring = MeshBuilders.ring().also { it.upload() }
         cueShaft = MeshBuilders.taperedCylinder(0.0062f, 0.0108f).also { it.upload() }
         cueButt = MeshBuilders.taperedCylinder(0.0108f, 0.0172f).also { it.upload() }
+        // A plain cylinder of radius one, scaled to whatever ring, tip or cap needs
+        // it. The tapered meshes carry their own radii, so a short length cut from
+        // one comes out as a cone flaring to the width of the whole cue.
+        cueBand = MeshBuilders.taperedCylinder(1f, 1f, segments = 20).also { it.upload() }
 
         for (number in 0..15) {
             ballTextures[number] = Textures.upload(Textures.ballBitmap(number))
@@ -134,12 +143,15 @@ class PoolRenderer(
         if (::unitBox.isInitialized) unitBox.release()
         if (::disc.isInitialized) disc.release()
         if (::quad.isInitialized) quad.release()
+        if (::ring.isInitialized) ring.release()
         if (::cueShaft.isInitialized) cueShaft.release()
         if (::cueButt.isInitialized) cueButt.release()
+        if (::cueBand.isInitialized) cueBand.release()
 
         val handles = ballTextures.toMutableList()
         handles += feltTexture
         handles += woodTexture
+        handles += railTexture
         handles += shadowTexture
         val live = handles.filter { it != 0 }.toIntArray()
         if (live.isNotEmpty()) GLES30.glDeleteTextures(live.size, live, 0)
@@ -147,6 +159,7 @@ class PoolRenderer(
         ballTextures.fill(0)
         feltTexture = 0
         woodTexture = 0
+        railTexture = 0
         shadowTexture = 0
         // Without this the cached key still matches the new style and the cloth and wood
         // are never re-made for the context that now needs them.
@@ -155,11 +168,17 @@ class PoolRenderer(
     }
 
     private fun uploadSurfaceTextures() {
-        val key = style.feltColor * 31 + style.railColor
+        val key = (style.feltColor * 31 + style.railColor) * 31 + style.trimColor
         if (key == uploadedStyleKey && feltTexture != 0) return
-        if (feltTexture != 0) GLES30.glDeleteTextures(2, intArrayOf(feltTexture, woodTexture), 0)
+        if (feltTexture != 0) {
+            GLES30.glDeleteTextures(3, intArrayOf(feltTexture, woodTexture, railTexture), 0)
+        }
         feltTexture = Textures.upload(Textures.feltBitmap(style.feltColor), repeat = true)
         woodTexture = Textures.upload(Textures.woodBitmap(style.railColor), repeat = true)
+        railTexture = Textures.upload(
+            Textures.woodBitmap(style.railColor, trim = style.trimColor, inlay = true),
+            repeat = true
+        )
         uploadedStyleKey = key
         // Uploading binds and then unbinds unit 0, and a freed texture name gets handed
         // straight back out, so what draw() believes is bound is no longer true.
@@ -308,7 +327,12 @@ class PoolRenderer(
         identity(model)
         translate(model, 0f, 0f, 0f)
         scale(model, TableLayers.clothHalfLength(), 1f, TableLayers.clothHalfWidth())
-        draw(shader, quad, model, felt, 1f, feltTexture, unlit = false, shininess = 6f, specular = 0.03f)
+        draw(
+            shader, quad, model, felt, 1f, feltTexture,
+            unlit = false, shininess = 6f, specular = 0.03f,
+            uvU = 2f * TableLayers.clothHalfLength() / FELT_TILE,
+            uvV = 2f * TableLayers.clothHalfWidth() / FELT_TILE
+        )
 
         // Apron under the bed so the table reads as a solid object from a low camera.
         // It must sit strictly below the cloth: the apron is wider than the playing
@@ -317,7 +341,12 @@ class PoolRenderer(
         identity(model)
         translate(model, 0f, TableLayers.APRON_TOP - TableLayers.APRON_HEIGHT, 0f)
         scale(model, frameHalfLength(), TableLayers.APRON_HEIGHT, frameHalfWidth())
-        draw(shader, unitBox, model, rail, 1f, woodTexture, unlit = false, shininess = 18f, specular = 0.10f)
+        draw(
+            shader, unitBox, model, rail, 1f, woodTexture,
+            unlit = false, shininess = 18f, specular = 0.10f,
+            uvU = 2f * frameHalfLength() / WOOD_TILE,
+            uvV = 2f * frameHalfWidth() / WOOD_TILE
+        )
 
         drawCushions(shader)
         drawRailFrame(shader)
@@ -351,7 +380,10 @@ class PoolRenderer(
             identity(model)
             translate(model, x, height, (z0 + z1) / 2f)
             scale(model, depth, height, (z1 - z0) / 2f)
-            draw(shader, unitBox, model, color, 1f, feltTexture, false, 8f, 0.05f)
+            draw(
+                shader, unitBox, model, color, 1f, feltTexture, false, 8f, 0.05f,
+                uvU = 2f * depth / FELT_TILE, uvV = (z1 - z0) / FELT_TILE
+            )
         }
     }
 
@@ -367,21 +399,10 @@ class PoolRenderer(
         identity(model)
         translate(model, (x0 + x1) / 2f, height, z)
         scale(model, (x1 - x0) / 2f, height, depth)
-        draw(shader, unitBox, model, color, 1f, feltTexture, false, 8f, 0.05f)
-    }
-
-    /** Axis aligned wooden box, sized in half extents. */
-    private fun drawBox(
-        shader: ShaderProgram,
-        x: Float, y: Float, z: Float,
-        sx: Float, sy: Float, sz: Float,
-        color: Int, unlit: Boolean
-    ) {
-        if (sx <= 0f || sy <= 0f || sz <= 0f) return
-        identity(model)
-        translate(model, x, y, z)
-        scale(model, sx, sy, sz)
-        draw(shader, unitBox, model, color, 1f, woodTexture, unlit, 20f, 0.1f)
+        draw(
+            shader, unitBox, model, color, 1f, feltTexture, false, 8f, 0.05f,
+            uvU = (x1 - x0) / FELT_TILE, uvV = 2f * depth / FELT_TILE
+        )
     }
 
     /**
@@ -391,26 +412,35 @@ class PoolRenderer(
     private fun drawRailFrame(shader: ShaderProgram) {
         val cushionOuterL = TableGeometry.HALF_LENGTH + CUSHION_DEPTH * 2f
         val cushionOuterW = TableGeometry.HALF_WIDTH + CUSHION_DEPTH * 2f
-        val height = TableLayers.RAIL_HEIGHT
-        val color = style.railColor
 
         // The long rails run the whole length and close the corners.
-        drawBox(
-            shader, 0f, height, cushionOuterW + RAIL_WIDTH,
-            frameHalfLength(), height, RAIL_WIDTH, color, false
-        )
-        drawBox(
-            shader, 0f, height, -(cushionOuterW + RAIL_WIDTH),
-            frameHalfLength(), height, RAIL_WIDTH, color, false
-        )
-        // The short rails fit between them.
-        drawBox(
-            shader, cushionOuterL + RAIL_WIDTH, height, 0f,
-            RAIL_WIDTH, height, cushionOuterW, color, false
-        )
-        drawBox(
-            shader, -(cushionOuterL + RAIL_WIDTH), height, 0f,
-            RAIL_WIDTH, height, cushionOuterW, color, false
+        drawRail(shader, 0f, cushionOuterW + RAIL_WIDTH, frameHalfLength(), 0f)
+        drawRail(shader, 0f, -(cushionOuterW + RAIL_WIDTH), frameHalfLength(), 0f)
+        // The short rails fit between them, turned a quarter turn.
+        drawRail(shader, cushionOuterL + RAIL_WIDTH, 0f, cushionOuterW, HALF_PI)
+        drawRail(shader, -(cushionOuterL + RAIL_WIDTH), 0f, cushionOuterW, HALF_PI)
+    }
+
+    /**
+     * One rail, lying along its own length whichever way round it goes.
+     *
+     * The short rails are built long and then turned, rather than built short and wide,
+     * so that the texture's U axis runs down the rail in both cases. That is what lets
+     * the grain follow the rail and the inlay run along it instead of across it.
+     */
+    private fun drawRail(shader: ShaderProgram, x: Float, z: Float, halfLength: Float, yaw: Float) {
+        val height = TableLayers.RAIL_HEIGHT
+        identity(model)
+        translate(model, x, height, z)
+        rotateY(model, yaw)
+        scale(model, halfLength, height, RAIL_WIDTH)
+        // A whole number of figures, so the pattern closes instead of being cut through
+        // the middle at the corner where two rails meet.
+        val repeats = max(1, (2f * halfLength / RAIL_TILE).roundToInt()).toFloat()
+        draw(
+            shader, unitBox, model, style.railColor, 1f, railTexture,
+            unlit = false, shininess = 20f, specular = 0.10f,
+            uvU = repeats, uvV = 1f
         )
     }
 
@@ -546,23 +576,40 @@ class PoolRenderer(
 
         GLES30.glEnable(GLES30.GL_BLEND)
         GLES30.glDepthMask(false)
+        // The guide is flat on the cloth and is only ever looked at from above, so which
+        // way round its triangles face is of no interest and getting it wrong would mean
+        // a ring that is simply not there. Two calls to not have to care.
+        GLES30.glDisable(GLES30.GL_CULL_FACE)
 
         val maxLength = controller.guideLength()
         val toContact = preview.contactPoint - preview.from
         val drawn = min(toContact.length(), maxLength)
-        drawDashedLine(shader, preview.from, preview.direction, drawn, 0xFFFFFFFF.toInt(), 0.75f)
+        // One clean line out of the cue ball. It used to be cut into dashes, which is a
+        // fussier thing to read and cost a draw call per dash.
+        drawSolidLine(
+            shader,
+            preview.from + preview.direction * TableGeometry.BALL_RADIUS,
+            preview.direction,
+            drawn - TableGeometry.BALL_RADIUS,
+            0xFFFFFFFF.toInt(),
+            0.85f,
+            GUIDE_HALF_WIDTH
+        )
 
         preview.ghostBall?.let { ghost ->
             if (ghost.distanceTo(preview.from) <= maxLength + 0.02f) {
+                // Where the cue ball will be standing when it arrives, drawn as the
+                // outline of a ball rather than a see-through ball. An outline sits on
+                // the cloth and does not argue with whatever is behind it.
                 identity(model)
-                translate(model, ghost.x, TableGeometry.BALL_RADIUS, ghost.y)
-                val r = TableGeometry.BALL_RADIUS * 1.01f
-                scale(model, r, r, r)
-                draw(shader, sphere, model, 0xFFFFFFFF.toInt(), 0.24f, 0, true, 1f, 0f)
+                translate(model, ghost.x, TableLayers.GHOST_RING, ghost.y)
+                val r = TableGeometry.BALL_RADIUS
+                scale(model, r, 1f, r)
+                draw(shader, ring, model, 0xFFFFFFFF.toInt(), 0.92f, 0, true, 1f, 0f)
 
-                // One line, from the ball that is about to be hit to wherever it gets
-                // to. It starts at that ball's edge rather than its centre, so it reads
-                // as the ball setting off rather than a line drawn through it.
+                // And one line from the ball that is about to be hit, to wherever it
+                // gets to. It starts at that ball's edge rather than its centre, so it
+                // reads as the ball setting off and not as a line drawn through it.
                 val objectBall = preview.objectBall
                 val objectDir = preview.objectDirection
                 if (objectBall != null && objectDir != null) {
@@ -575,42 +622,17 @@ class PoolRenderer(
                             objectDir,
                             run,
                             0xFFFFFFFF.toInt(),
-                            0.8f
+                            0.85f,
+                            GUIDE_HALF_WIDTH
                         )
                     }
                 }
             }
         }
 
+        GLES30.glEnable(GLES30.GL_CULL_FACE)
         GLES30.glDepthMask(true)
         GLES30.glDisable(GLES30.GL_BLEND)
-    }
-
-    private fun drawDashedLine(
-        shader: ShaderProgram,
-        from: Vec2,
-        direction: Vec2,
-        length: Float,
-        color: Int,
-        alpha: Float
-    ) {
-        if (length <= 0.01f) return
-        val dash = 0.032f
-        // Every dash is its own draw call, and a five star cue's guide runs most of the
-        // length of the table: at a fixed spacing that was fifty draws a frame spent on a
-        // dotted line. Past the cap the gaps open up instead, which reads the same.
-        val period = max(dash + 0.022f, (length - TableGeometry.BALL_RADIUS) / MAX_GUIDE_DASHES)
-        var travelled = TableGeometry.BALL_RADIUS
-        while (travelled < length) {
-            val segment = min(dash, length - travelled)
-            val mid = from + direction * (travelled + segment / 2f)
-            identity(model)
-            translate(model, mid.x, TableLayers.GUIDE_DASH, mid.y)
-            rotateY(model, atan2(direction.y, direction.x))
-            scale(model, segment / 2f, 1f, 0.0032f)
-            draw(shader, quad, model, color, alpha, 0, true, 1f, 0f)
-            travelled += period
-        }
     }
 
     private fun drawSolidLine(
@@ -619,13 +641,15 @@ class PoolRenderer(
         direction: Vec2,
         length: Float,
         color: Int,
-        alpha: Float
+        alpha: Float,
+        halfWidth: Float
     ) {
+        if (length <= 0.005f) return
         val mid = from + direction * (length / 2f)
         identity(model)
         translate(model, mid.x, TableLayers.GUIDE_LINE, mid.y)
         rotateY(model, atan2(direction.y, direction.x))
-        scale(model, length / 2f, 1f, 0.0034f)
+        scale(model, length / 2f, 1f, halfWidth)
         draw(shader, quad, model, color, alpha, 0, true, 1f, 0f)
     }
 
@@ -650,10 +674,43 @@ class PoolRenderer(
             shader, cueButt, tip, heading, tipHeight, SHAFT_LENGTH, BUTT_LENGTH, style.cueButtColor
         )
         // Collar between the two, in the cue's accent colour.
-        drawCuePiece(
-            shader, cueShaft, tip, heading, tipHeight,
-            SHAFT_LENGTH - 0.012f, 0.014f, style.cueAccentColor
+        drawCueBand(
+            shader, tip, heading, tipHeight,
+            SHAFT_LENGTH - 0.012f, 0.014f, 0.0112f, style.cueAccentColor
         )
+        // The business end. The cue had no tip at all: it ran to a point in the shaft's
+        // own colour, and the tip is the one part of a cue a player is looking at while
+        // they line a shot up. The shop draws it on every cue in the rack.
+        drawCueBand(shader, tip, heading, tipHeight, 0f, TIP_LENGTH, 0.0063f, TIP_COLOR)
+        drawCueBand(
+            shader, tip, heading, tipHeight,
+            TIP_LENGTH, FERRULE_LENGTH, 0.0064f, FERRULE_COLOR
+        )
+        // And a cap on the butt, so the far end stops rather than simply running out.
+        drawCueBand(
+            shader, tip, heading, tipHeight,
+            SHAFT_LENGTH + BUTT_LENGTH - 0.022f, 0.022f, 0.0174f, style.cueAccentColor
+        )
+    }
+
+    /** A short cylinder of [radius] set into the cue: a tip, a ferrule, a ring, a cap. */
+    private fun drawCueBand(
+        shader: ShaderProgram,
+        tip: Vec2,
+        heading: Float,
+        tipHeight: Float,
+        startOffset: Float,
+        length: Float,
+        radius: Float,
+        color: Int
+    ) {
+        identity(model)
+        translate(model, tip.x, tipHeight, tip.y)
+        rotateY(model, heading)
+        rotateZ(model, CUE_ELEVATION)
+        translate(model, startOffset, 0f, 0f)
+        scale(model, length, radius, radius)
+        draw(shader, cueBand, model, color, 1f, 0, unlit = false, shininess = 48f, specular = 0.45f)
     }
 
     /** Raising or lowering the tip shows the player which spin they dialled in. */
@@ -689,8 +746,11 @@ class PoolRenderer(
         texture: Int,
         unlit: Boolean,
         shininess: Float,
-        specular: Float
+        specular: Float,
+        uvU: Float = 1f,
+        uvV: Float = 1f
     ) {
+        shader.setVec2("uUvScale", uvU, uvV)
         shader.setMatrix("uModel", modelMatrix)
         setNormalMatrix(modelMatrix, normalMatrix)
         shader.setMatrix3("uNormalMatrix", normalMatrix)
@@ -776,8 +836,17 @@ class PoolRenderer(
         private const val DEFAULT_DISTANCE = 2.36f
         private const val FIELD_OF_VIEW = 32f
 
-        /** Most dashes the aiming guide is allowed to be cut into. */
-        private const val MAX_GUIDE_DASHES = 20f
+        // How much table one tile of each texture covers, in metres. Everything used to
+        // be stretched to the size of the piece it was on, so a square of cloth painted
+        // with a fine nap was smeared the length of the bed and the nap came out as
+        // bands a hand wide.
+        private const val FELT_TILE = 0.16f
+        private const val WOOD_TILE = 0.30f
+        /** One figure of rail inlay every twelve centimetres. */
+        private const val RAIL_TILE = 0.12f
+
+        /** Half the thickness of the aiming lines, in metres. A ball is 57mm across. */
+        private const val GUIDE_HALF_WIDTH = 0.0026f
 
         // Where a ball's shadow sits, in ball radii. Taken from the light direction the
         // shader is given, flattened onto the cloth: a shadow that disagrees with the
@@ -794,5 +863,11 @@ class PoolRenderer(
         private const val CUE_ELEVATION = 0.11f
         private const val SHAFT_LENGTH = 0.78f
         private const val BUTT_LENGTH = 0.62f
+
+        /** Leather tip and the bone coloured ferrule behind it. */
+        private const val TIP_LENGTH = 0.011f
+        private const val FERRULE_LENGTH = 0.011f
+        private const val TIP_COLOR = 0xFF5B86C4.toInt()
+        private const val FERRULE_COLOR = 0xFFF2EDE2.toInt()
     }
 }

@@ -129,6 +129,40 @@ object MeshBuilders {
         return Mesh(v.toFloatArray(), i.toIntArray())
     }
 
+    /**
+     * Flat ring on the XZ plane, outer radius 1, facing +Y. The ghost ball on the aiming
+     * guide is drawn with it: an outline where the cue ball will be when it arrives,
+     * rather than a translucent ball sitting on top of the table.
+     *
+     * Wound the same way round as [disc], which is the one shape here already known to
+     * face the game's camera.
+     */
+    fun ring(inner: Float = 0.85f, segments: Int = 40): Mesh {
+        val v = ArrayList<Float>((segments + 1) * 2 * 8)
+        val i = ArrayList<Int>(segments * 6)
+        for (seg in 0..segments) {
+            val t = seg.toFloat() / segments
+            val angle = t * 2f * PI.toFloat()
+            val c = cos(angle)
+            val s = sin(angle)
+            v.add(c * inner); v.add(0f); v.add(s * inner)
+            v.add(0f); v.add(1f); v.add(0f)
+            v.add(t); v.add(0f)
+            v.add(c); v.add(0f); v.add(s)
+            v.add(0f); v.add(1f); v.add(0f)
+            v.add(t); v.add(1f)
+        }
+        for (seg in 0 until segments) {
+            val innerHere = seg * 2
+            val outerHere = innerHere + 1
+            val innerNext = innerHere + 2
+            val outerNext = innerHere + 3
+            i.add(innerHere); i.add(outerHere); i.add(outerNext)
+            i.add(innerHere); i.add(outerNext); i.add(innerNext)
+        }
+        return Mesh(v.toFloatArray(), i.toIntArray())
+    }
+
     /** Unit quad on the XZ plane facing +Y, spanning -1..1, used for cloth and guide lines. */
     fun quadXZ(): Mesh {
         val v = floatArrayOf(

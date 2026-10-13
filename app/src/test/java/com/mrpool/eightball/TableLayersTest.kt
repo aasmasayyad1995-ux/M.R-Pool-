@@ -49,8 +49,8 @@ class TableLayersTest {
         ),
         Surface("ball shadows", TableLayers.BALL_SHADOW, TableGeometry.HALF_LENGTH, TableGeometry.HALF_WIDTH),
         Surface("spot and head string", TableLayers.MARKING, TableGeometry.HALF_LENGTH, TableGeometry.HALF_WIDTH),
-        Surface("aiming dashes", TableLayers.GUIDE_DASH, TableGeometry.HALF_LENGTH, TableGeometry.HALF_WIDTH),
         Surface("aiming line", TableLayers.GUIDE_LINE, TableGeometry.HALF_LENGTH, TableGeometry.HALF_WIDTH),
+        Surface("ghost ring", TableLayers.GHOST_RING, TableGeometry.HALF_LENGTH, TableGeometry.HALF_WIDTH),
         Surface("pocket trim", TableLayers.POCKET_TRIM, TableGeometry.HALF_LENGTH, TableGeometry.HALF_WIDTH),
         Surface("pocket hole", TableLayers.POCKET_HOLE, TableGeometry.HALF_LENGTH, TableGeometry.HALF_WIDTH)
     )
