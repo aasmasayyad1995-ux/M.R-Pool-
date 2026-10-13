@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.Shader
@@ -129,8 +130,19 @@ object Textures {
         return bitmap
     }
 
-    /** Polished wood with a grain that follows the rail. */
-    fun woodBitmap(color: Int, size: Int = 256): Bitmap {
+    /**
+     * Polished wood with a grain that follows the rail.
+     *
+     * [inlay] adds the decoration the rails carry: two lines running the length of the
+     * rail and a repeating figure between them, in the table's own trim colour. It is
+     * what separates a table somebody built from a brown box around some green. The
+     * apron under the bed asks for the same wood without it, because a band of
+     * marquetry running round the side of the carcass is not a thing furniture does.
+     *
+     * The grain runs along U, which the renderer lines up with the length of whatever it
+     * is drawing, so a rail is grained down its length whichever way round it lies.
+     */
+    fun woodBitmap(color: Int, size: Int = 256, trim: Int = color, inlay: Boolean = false): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(color)
@@ -143,12 +155,54 @@ object Textures {
             paint.strokeWidth = 1.4f
             canvas.drawLine(0f, i.toFloat(), size.toFloat(), i + abs(wave) * 0.02f, paint)
         }
+
+        if (inlay) {
+            val light = shift(trim, 60)
+            val dark = shift(trim, -40)
+            val banded = Paint(Paint.ANTI_ALIAS_FLAG)
+            // Two pairs of lines, a thick dark one shadowed by a thin bright one, which
+            // is how an inlay set into wood catches the light.
+            for ((v, c, w) in listOf(
+                Triple(0.265f, dark, 3f), Triple(0.300f, light, 2f),
+                Triple(0.700f, light, 2f), Triple(0.735f, dark, 3f)
+            )) {
+                banded.color = c
+                banded.strokeWidth = w
+                canvas.drawLine(0f, v * size, size.toFloat(), v * size, banded)
+            }
+            // The figure between them. Drawn at both ends of the tile as well as the
+            // middle so that it carries across the seam where the texture repeats.
+            val cy = size * 0.5f
+            val r = size * 0.115f
+            for (cx in floatArrayOf(0f, size * 0.5f, size.toFloat())) {
+                banded.color = light
+                canvas.drawPath(diamond(cx, cy, r * 0.62f, r), banded)
+                banded.color = dark
+                canvas.drawPath(diamond(cx, cy, r * 0.32f, r * 0.52f), banded)
+            }
+            banded.color = light
+            for (cx in floatArrayOf(size * 0.25f, size * 0.75f)) {
+                canvas.drawCircle(cx, cy, size * 0.019f, banded)
+            }
+        }
+
         paint.shader = LinearGradient(
             0f, 0f, 0f, size.toFloat(),
             0x30FFFFFF, 0x30000000, Shader.TileMode.CLAMP
         )
         canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
         return bitmap
+    }
+
+    /** A lozenge on its point, [halfWidth] across and [halfHeight] tall. */
+    private fun diamond(cx: Float, cy: Float, halfWidth: Float, halfHeight: Float): Path {
+        val path = Path()
+        path.moveTo(cx, cy - halfHeight)
+        path.lineTo(cx + halfWidth, cy)
+        path.lineTo(cx, cy + halfHeight)
+        path.lineTo(cx - halfWidth, cy)
+        path.close()
+        return path
     }
 
     /** A soft round shadow blob dropped under every ball. */
